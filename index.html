@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识闯关 — 把知识存进游戏里，越玩越牢</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="container">
+      <h1>知识闯关</h1>
+      <p class="sub">把知识存成卡片，复习时就是一场游戏</p>
+      <div class="toolbar">
+        <!-- F2：科目筛选（Day 8 主视图已实现） -->
+        <div id="filters" class="filters"></div>
+        <!-- F3：随机复习，打乱卡片顺序 -->
+        <button id="shuffleBtn" class="shuffle" type="button">🎲 随机复习</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <p id="stats" class="stats"></p>
+
+    <!-- 四种页面状态（Day 8）：加载中 / 空 / 错误 / 正常，同一时刻只显示一种 -->
+    <div id="loading" class="loading" aria-live="polite">
+      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+    </div>
+
+    <div id="empty" class="empty hidden">
+      <p class="empty-emoji">🗂️</p>
+      <p class="empty-title">这里还没有任何知识卡片</p>
+      <p class="empty-desc">卡片库是空的——等第一批卡片录入后，就能开始闯关了。</p>
+    </div>
+
+    <div id="error" class="error hidden">
+      <p id="errorMsg" class="error-msg">卡片加载失败，请确认通过本地服务器访问后重试。</p>
+      <button id="retryBtn" class="retry" type="button">重试</button>
+    </div>
+
+    <div id="grid" class="grid"></div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p class="credit">点卡片可翻面看答案 ｜ 知识闯关 © 2026 张光如（709QR）· XingHo-VibeCoding 训练营</p>
+    </div>
+  </footer>
+
+  <script src="js/components.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

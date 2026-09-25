@@ -1,0 +1,5 @@
+# 环境与凭据（永不入库）
+.env
+*.log
+Thumbs.db
+.DS_Store

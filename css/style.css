@@ -1,0 +1,183 @@
+/* 知识闯关 — 单页样式（Day 8 主视图，A5 移动端适配） */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: #f4f6fa;
+  color: #24292f;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container { max-width: 960px; margin: 0 auto; padding: 0 16px; width: 100%; }
+
+/* 标题区 */
+.top {
+  background: linear-gradient(135deg, #4f46e5, #7c6cf0);
+  color: #fff;
+  padding: 26px 0 18px;
+}
+.top h1 { font-size: 28px; letter-spacing: 2px; }
+.top .sub { margin-top: 6px; font-size: 14px; opacity: .92; }
+
+.toolbar {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  background: rgba(255,255,255,.16);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: 999px;
+  padding: 5px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.chip:hover { background: rgba(255,255,255,.3); }
+.chip.active { background: #fff; color: #4f46e5; border-color: #fff; font-weight: 700; }
+.shuffle {
+  background: rgba(255,255,255,.16);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.65);
+  border-radius: 999px;
+  padding: 6px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.shuffle:hover { background: rgba(255,255,255,.32); }
+.shuffle:active { transform: scale(.97); }
+
+/* 统计行 */
+.stats { margin: 14px 2px 12px; font-size: 12px; color: #8a92a3; }
+
+/* 卡片墙（F1） */
+main { flex: 1; padding-bottom: 30px; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e7e9f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-height: 128px;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(20,30,60,.06);
+  transition: transform .15s, box-shadow .15s;
+  display: flex;
+  flex-direction: column;
+}
+.card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(40,50,90,.12); }
+
+.card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.badge {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.badge-口语 { background: #e8f0fd; color: #2b6cb0; }
+.badge-教务 { background: #f3e8fd; color: #7c3aed; }
+.badge-专业课 { background: #e6f7ee; color: #0f9d58; }
+.badge-销售 { background: #fdeee0; color: #d97706; }
+.meta { font-size: 11px; color: #9aa1ab; }
+
+.face p { font-size: 14px; line-height: 1.6; word-break: break-all; }
+.face.front .hint { position: absolute; right: 14px; bottom: 10px; font-size: 11px; color: #c2c8d2; }
+.face.back { display: none; }
+.card.flipped .face.front { display: none; }
+.card.flipped .face.back { display: block; }
+.card.flipped { background: #f6f5ff; border-color: #d8d4f8; }
+.card.flipped .face.back p { color: #4f46e5; font-weight: 600; }
+
+/* Day 8 状态 1：加载中 — 骨架屏 */
+.loading { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.skeleton-card {
+  background: #fff;
+  border: 1px solid #e7e9f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-height: 128px;
+}
+.sk {
+  display: inline-block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #eceef3 25%, #f6f7fa 45%, #eceef3 65%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite linear;
+}
+.sk-tag { width: 52px; height: 18px; margin-bottom: 10px; }
+.sk-line { display: block; width: 100%; height: 14px; margin-bottom: 8px; }
+.sk-line.short { width: 60%; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Day 8 状态 2：空 */
+.empty {
+  background: #fff;
+  border: 1px dashed #d6dae1;
+  border-radius: 12px;
+  padding: 48px 16px;
+  text-align: center;
+}
+.empty-emoji { font-size: 34px; }
+.empty-title { margin-top: 10px; font-size: 16px; font-weight: 700; }
+.empty-desc { margin-top: 6px; font-size: 13px; color: #9aa1ab; }
+
+/* Day 8 状态 3：错误 + 重试 */
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fdeaea;
+  color: #c9302c;
+  border: 1px solid #f3c1c1;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+}
+.error-msg { flex: 1; }
+.retry {
+  background: #c9302c;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 20px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.retry:hover { background: #a82622; }
+
+.hidden { display: none; }
+
+/* 页脚 */
+.footer {
+  background: #fff;
+  border-top: 1px solid #e7e9f0;
+  padding: 14px 0 18px;
+  font-size: 12px;
+  color: #9aa1ab;
+  text-align: center;
+}
+
+/* A5：375px 无横向滚动 */
+@media (max-width: 480px) {
+  .top h1 { font-size: 22px; }
+  .grid, .loading { grid-template-columns: 1fr; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+}
