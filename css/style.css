@@ -165,6 +165,73 @@ main { flex: 1; padding-bottom: 30px; }
 
 .hidden { display: none; }
 
+/* ＝＝＝ Day 9：添加卡片面板 ＝＝＝ */
+.addpanel {
+  background: #fff;
+  border: 1px solid #d8d4f8;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.addpanel-title { font-size: 15px; margin-bottom: 12px; color: #4f46e5; }
+.form-row { margin-bottom: 10px; display: flex; align-items: flex-start; gap: 10px; }
+.form-row label { width: 108px; flex-shrink: 0; font-size: 13px; color: #5f6470; padding-top: 8px; }
+.form-row select,
+.form-row input[type="text"] {
+  font-size: 13px; padding: 7px 10px; border: 1px solid #d6dae1; border-radius: 8px; background: #fafbfd;
+}
+.form-row textarea {
+  flex: 1; font-size: 13px; line-height: 1.5; padding: 8px 10px;
+  border: 1px solid #d6dae1; border-radius: 8px; resize: vertical; font-family: inherit; background: #fafbfd;
+}
+.form-row textarea:focus, .form-row select:focus, .form-row input:focus { outline: 2px solid #c7c2f5; border-color: #7c6cf0; }
+.form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
+.form-msg { font-size: 12px; color: #9aa1ab; }
+.form-msg.ok { color: #0f9d58; }
+.form-msg.warn { color: #d97706; }
+.retry.save { background: #4f46e5; }
+.retry.save:hover { background: #3c37b8; }
+.retry.miss { background: #8a92a3; }
+.retry.miss:hover { background: #6f7787; }
+.local-tag {
+  background: #e6f7ee; color: #0f9d58; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-right: 4px;
+}
+.card-del {
+  position: absolute; top: 8px; right: 8px;
+  width: 22px; height: 22px; border: none; border-radius: 6px;
+  background: #f1f2f6; color: #8a92a3; font-size: 12px; cursor: pointer; line-height: 1;
+}
+.card-del:hover { background: #fdeaea; color: #c9302c; }
+
+/* ＝＝＝ Day 9：闯关模式 ＝＝＝ */
+.viewbtns { display: flex; gap: 8px; }
+.quiz { max-width: 640px; margin: 0 auto; }
+.q-progress { text-align: center; font-size: 14px; font-weight: 500; color: #4f46e5; margin-bottom: 12px; }
+.quiz-card, .result-card {
+  background: #fff; border: 1px solid #e7e9f0; border-radius: 14px;
+  padding: 20px 22px; min-height: 180px; box-shadow: 0 2px 8px rgba(40,50,90,.08);
+}
+.q-tip { font-size: 11px; color: #c2c8d2; }
+.q-front { font-size: 17px; line-height: 1.7; margin: 14px 0; word-break: break-all; }
+.q-back { border-top: 1px dashed #d8d4f8; padding-top: 12px; }
+.q-back-label { font-size: 11px; color: #9aa1ab; margin-bottom: 4px; }
+.q-back p { font-size: 15px; line-height: 1.7; color: #4f46e5; font-weight: 500; word-break: break-all; }
+.quiz-actions { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+.judge-label { font-size: 13px; color: #8a92a3; }
+.result-card { text-align: center; }
+.result-title { font-size: 15px; color: #5f6470; }
+.score { font-size: 34px; font-weight: 500; color: #4f46e5; margin: 8px 0; }
+.score.perfect { color: #0f9d58; }
+.stamps { font-size: 16px; letter-spacing: 4px; margin-bottom: 6px; }
+.q-best { font-size: 12px; color: #9aa1ab; margin-bottom: 10px; }
+.review { list-style: none; text-align: left; margin: 12px 0 4px; }
+.review-item {
+  font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px;
+  background: #fafbfd; border: 1px solid #e7e9f0; word-break: break-all;
+}
+.review-item.ok { border-left: 3px solid #0f9d58; }
+.review-item.bad { border-left: 3px solid #e24b4a; color: #5f6470; }
+
 /* 页脚 */
 .footer {
   background: #fff;
@@ -180,4 +247,6 @@ main { flex: 1; padding-bottom: 30px; }
   .top h1 { font-size: 22px; }
   .grid, .loading { grid-template-columns: 1fr; }
   .toolbar { flex-direction: column; align-items: stretch; }
+  .form-row { flex-direction: column; gap: 4px; }
+  .form-row label { width: auto; padding-top: 0; }
 }

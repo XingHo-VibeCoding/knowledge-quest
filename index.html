@@ -12,10 +12,12 @@
       <h1>知识闯关</h1>
       <p class="sub">把知识存成卡片，复习时就是一场游戏</p>
       <div class="toolbar">
-        <!-- F2：科目筛选（Day 8 主视图已实现） -->
-        <div id="filters" class="filters"></div>
-        <!-- F3：随机复习，打乱卡片顺序 -->
-        <button id="shuffleBtn" class="shuffle" type="button">🎲 随机复习</button>
+        <!-- 视图切换：卡片墙 / 闯关（Day 9） -->
+        <div class="viewbtns">
+          <button id="wallBtn" class="chip active" type="button">📚 卡片墙</button>
+          <button id="quizBtn" class="chip" type="button">⚔️ 开始闯关</button>
+        </div>
+        <button id="addBtn" class="shuffle" type="button">＋ 添加卡片</button>
       </div>
     </div>
   </header>
@@ -23,37 +25,113 @@
   <main class="container">
     <p id="stats" class="stats"></p>
 
-    <!-- 四种页面状态（Day 8）：加载中 / 空 / 错误 / 正常，同一时刻只显示一种 -->
-    <div id="loading" class="loading" aria-live="polite">
-      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
-      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
-      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
-      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
-      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
-      <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+    <!-- ＝＝＝ 视图一：卡片墙 ＝＝＝ -->
+    <div id="view-wall">
+      <!-- F2：科目筛选（Day 8 主视图已实现） -->
+      <div id="filters" class="filters"></div>
+
+      <!-- 添加卡片面板（Day 9：你的知识你存，localStorage 本机保存） -->
+      <div id="addPanel" class="addpanel hidden">
+        <h3 class="addpanel-title">添加一张知识卡片</h3>
+        <div class="form-row">
+          <label for="fSubject">科目</label>
+          <select id="fSubject">
+            <option>口语</option>
+            <option>教务</option>
+            <option>专业课</option>
+            <option>销售</option>
+            <option value="__custom">自定义…</option>
+          </select>
+          <input id="fSubjectCustom" class="hidden" type="text" placeholder="科目名，如：光学" maxlength="8">
+        </div>
+        <div class="form-row">
+          <label for="fFront">正面（问题/提示）</label>
+          <textarea id="fFront" rows="2" placeholder="例：光的干涉和衍射怎么区分？"></textarea>
+        </div>
+        <div class="form-row">
+          <label for="fBack">背面（答案）</label>
+          <textarea id="fBack" rows="2" placeholder="例：干涉是多束相干光叠加；衍射是绕障碍物后自相叠加。"></textarea>
+        </div>
+        <div class="form-actions">
+          <span id="formMsg" class="form-msg"></span>
+          <button id="saveCardBtn" class="retry save" type="button">存入卡片库</button>
+        </div>
+      </div>
+
+      <!-- 四种页面状态：加载中 / 空 / 错误 / 正常，同一时刻只显示一种 -->
+      <div id="loading" class="loading" aria-live="polite">
+        <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+        <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+        <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+        <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+        <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+        <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
+      </div>
+
+      <div id="empty" class="empty hidden">
+        <p class="empty-emoji">🗂️</p>
+        <p class="empty-title">这里还没有任何知识卡片</p>
+        <p class="empty-desc">点右上角「＋ 添加卡片」录入第一张，就能开始闯关了。</p>
+      </div>
+
+      <div id="error" class="error hidden">
+        <p id="errorMsg" class="error-msg">卡片加载失败，请确认通过本地服务器访问后重试。</p>
+        <button id="retryBtn" class="retry" type="button">重试</button>
+      </div>
+
+      <div id="grid" class="grid"></div>
     </div>
 
-    <div id="empty" class="empty hidden">
-      <p class="empty-emoji">🗂️</p>
-      <p class="empty-title">这里还没有任何知识卡片</p>
-      <p class="empty-desc">卡片库是空的——等第一批卡片录入后，就能开始闯关了。</p>
-    </div>
+    <!-- ＝＝＝ 视图二：闯关模式（Day 9） ＝＝＝ -->
+    <div id="view-quiz" class="quiz hidden">
+      <div id="qView">
+        <p id="qProgress" class="q-progress"></p>
+        <div class="quiz-card">
+          <div class="card-top">
+            <span id="qSubject" class="badge"></span>
+            <span class="q-tip">先自己想答案，再翻面核对</span>
+          </div>
+          <p id="qFront" class="q-front"></p>
+          <div id="qBackWrap" class="q-back hidden">
+            <p class="q-back-label">答案</p>
+            <p id="qBack"></p>
+          </div>
+        </div>
+        <div class="quiz-actions">
+          <button id="showAnswerBtn" class="retry save" type="button">显示答案</button>
+          <div id="answerBtns" class="hidden">
+            <span class="judge-label">刚才这题：</span>
+            <button id="correctBtn" class="retry save" type="button">✓ 答对了</button>
+            <button id="wrongBtn" class="retry miss" type="button">✗ 没答上</button>
+          </div>
+        </div>
+      </div>
 
-    <div id="error" class="error hidden">
-      <p id="errorMsg" class="error-msg">卡片加载失败，请确认通过本地服务器访问后重试。</p>
-      <button id="retryBtn" class="retry" type="button">重试</button>
+      <div id="resultView" class="hidden">
+        <div class="result-card">
+          <p class="result-title">本轮通关！</p>
+          <p id="qScore" class="score"></p>
+          <p id="qStamps" class="stamps"></p>
+          <p id="qBest" class="q-best"></p>
+          <ul id="qReview" class="review"></ul>
+          <div class="quiz-actions">
+            <button id="againBtn" class="retry save" type="button">再来一轮</button>
+            <button id="backWallBtn" class="retry miss" type="button">返回卡片墙</button>
+          </div>
+        </div>
+      </div>
     </div>
-
-    <div id="grid" class="grid"></div>
   </main>
 
   <footer class="footer">
     <div class="container">
-      <p class="credit">点卡片可翻面看答案 ｜ 知识闯关 © 2026 张光如（709QR）· XingHo-VibeCoding 训练营</p>
+      <p class="credit">点卡片翻面看答案 · 自存卡片保存在本机浏览器 ｜ 知识闯关 © 2026 张光如（709QR）· XingHo-VibeCoding 训练营</p>
     </div>
   </footer>
 
+  <script src="js/store.js"></script>
   <script src="js/components.js"></script>
+  <script src="js/quiz.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
