@@ -55,8 +55,22 @@ body {
 .shuffle:hover { background: rgba(255,255,255,.32); }
 .shuffle:active { transform: scale(.97); }
 
-/* 统计行 */
-.stats { margin: 14px 2px 12px; font-size: 12px; color: #8a92a3; }
+/* 统计行（Day 9 审查：对比度 3.0->6.9，左右 margin 归零与网格对齐） */
+.stats { margin: 14px 0 12px; font-size: 13px; color: #5f6470; }
+
+/* 筛选 chips 专用浅色主题（Day 9 审查：原白字样式是给深色头部的，
+   落在浅色主区域上白字几乎不可见；active 态改靛蓝底让选中态醒目） */
+.filters .chip {
+  background: #fff;
+  color: #424761;
+  border: 1px solid #d6dae1;
+}
+.filters .chip:hover { background: #f1f2fb; }
+.filters .chip.active {
+  background: #4f46e5;
+  color: #fff;
+  border-color: #4f46e5;
+}
 
 /* 卡片墙（F1） */
 main { flex: 1; padding-bottom: 30px; }
@@ -91,10 +105,10 @@ main { flex: 1; padding-bottom: 30px; }
 .badge-教务 { background: #f3e8fd; color: #7c3aed; }
 .badge-专业课 { background: #e6f7ee; color: #0f9d58; }
 .badge-销售 { background: #fdeee0; color: #d97706; }
-.meta { font-size: 11px; color: #9aa1ab; }
+.meta { font-size: 11px; color: #6b7280; }
 
 .face p { font-size: 14px; line-height: 1.6; word-break: break-all; }
-.face.front .hint { position: absolute; right: 14px; bottom: 10px; font-size: 11px; color: #c2c8d2; }
+.face.front .hint { position: absolute; right: 14px; bottom: 10px; font-size: 11px; color: #6f7787; }
 .face.back { display: none; }
 .card.flipped .face.front { display: none; }
 .card.flipped .face.back { display: block; }
@@ -135,7 +149,7 @@ main { flex: 1; padding-bottom: 30px; }
 }
 .empty-emoji { font-size: 34px; }
 .empty-title { margin-top: 10px; font-size: 16px; font-weight: 700; }
-.empty-desc { margin-top: 6px; font-size: 13px; color: #9aa1ab; }
+.empty-desc { margin-top: 6px; font-size: 13px; color: #6b7280; }
 
 /* Day 8 状态 3：错误 + 重试 */
 .error {
@@ -178,28 +192,28 @@ main { flex: 1; padding-bottom: 30px; }
 .form-row label { width: 108px; flex-shrink: 0; font-size: 13px; color: #5f6470; padding-top: 8px; }
 .form-row select,
 .form-row input[type="text"] {
-  font-size: 13px; padding: 7px 10px; border: 1px solid #d6dae1; border-radius: 8px; background: #fafbfd;
+  flex: 1; font-size: 13px; padding: 7px 10px; border: 1px solid #d6dae1; border-radius: 8px; background: #fafbfd;
 }
 .form-row textarea {
   flex: 1; font-size: 13px; line-height: 1.5; padding: 8px 10px;
   border: 1px solid #d6dae1; border-radius: 8px; resize: vertical; font-family: inherit; background: #fafbfd;
 }
 .form-row textarea:focus, .form-row select:focus, .form-row input:focus { outline: 2px solid #c7c2f5; border-color: #7c6cf0; }
-.form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 4px; }
-.form-msg { font-size: 12px; color: #9aa1ab; }
+.form-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; }
+.form-msg { font-size: 12px; color: #6b7280; }
 .form-msg.ok { color: #0f9d58; }
 .form-msg.warn { color: #d97706; }
 .retry.save { background: #4f46e5; }
 .retry.save:hover { background: #3c37b8; }
-.retry.miss { background: #8a92a3; }
-.retry.miss:hover { background: #6f7787; }
+.retry.miss { background: #6f7787; }
+.retry.miss:hover { background: #575e6c; }
 .local-tag {
   background: #e6f7ee; color: #0f9d58; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-right: 4px;
 }
 .card-del {
   position: absolute; top: 8px; right: 8px;
   width: 22px; height: 22px; border: none; border-radius: 6px;
-  background: #f1f2f6; color: #8a92a3; font-size: 12px; cursor: pointer; line-height: 1;
+  background: #f1f2f6; color: #6b7280; font-size: 12px; cursor: pointer; line-height: 1;
 }
 .card-del:hover { background: #fdeaea; color: #c9302c; }
 
@@ -211,19 +225,19 @@ main { flex: 1; padding-bottom: 30px; }
   background: #fff; border: 1px solid #e7e9f0; border-radius: 14px;
   padding: 20px 22px; min-height: 180px; box-shadow: 0 2px 8px rgba(40,50,90,.08);
 }
-.q-tip { font-size: 11px; color: #c2c8d2; }
+.q-tip { font-size: 11px; color: #6f7787; }
 .q-front { font-size: 17px; line-height: 1.7; margin: 14px 0; word-break: break-all; }
 .q-back { border-top: 1px dashed #d8d4f8; padding-top: 12px; }
-.q-back-label { font-size: 11px; color: #9aa1ab; margin-bottom: 4px; }
+.q-back-label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
 .q-back p { font-size: 15px; line-height: 1.7; color: #4f46e5; font-weight: 500; word-break: break-all; }
 .quiz-actions { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
-.judge-label { font-size: 13px; color: #8a92a3; }
+.judge-label { font-size: 13px; color: #6b7280; }
 .result-card { text-align: center; }
 .result-title { font-size: 15px; color: #5f6470; }
 .score { font-size: 34px; font-weight: 500; color: #4f46e5; margin: 8px 0; }
 .score.perfect { color: #0f9d58; }
 .stamps { font-size: 16px; letter-spacing: 4px; margin-bottom: 6px; }
-.q-best { font-size: 12px; color: #9aa1ab; margin-bottom: 10px; }
+.q-best { font-size: 12px; color: #6b7280; margin-bottom: 10px; }
 .review { list-style: none; text-align: left; margin: 12px 0 4px; }
 .review-item {
   font-size: 13px; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px;
@@ -238,7 +252,7 @@ main { flex: 1; padding-bottom: 30px; }
   border-top: 1px solid #e7e9f0;
   padding: 14px 0 18px;
   font-size: 12px;
-  color: #9aa1ab;
+  color: #6b7280;
   text-align: center;
 }
 
