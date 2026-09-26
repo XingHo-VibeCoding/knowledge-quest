@@ -16,7 +16,7 @@ python -m http.server 8000
 
 ## 当前进度
 
-- **Day 9**：闯关模式雏形（抽 5 关 → 自答 → 翻面核对 → 自判 → 成绩单 + 本机最佳战绩）+ 添加卡片（localStorage 本机持久化，自存卡可删、参与闯关）
+- **Day 9**：设计规则审查修复（筛选chips对比度 / 次要文字 WCAG AA / 表单对齐 / 间距，前后截图对比）+ `--ink-*` 颜色 token 约束；闯关模式雏形（抽 5 关 → 自答 → 翻面核对 → 自判 → 成绩单 + 本机最佳战绩）+ 添加卡片（localStorage 本机持久化，自存卡可删、参与闯关）
 - **Day 8**：主视图（mock 数据版）——知识卡片墙 + 科目筛选 + 随机复习 + 点击翻面；四种页面状态（加载/空/错误/正常）齐备
 - 旧项目「今日热搜」（jinri-hot-search）保留作为存档，Day 8 起主线切换到本项目
 
@@ -27,6 +27,6 @@ python -m http.server 8000
 ## 文档链
 
 - [research.md](research.md) — 选题调研：为什么换掉热搜
-- [PRD.md](PRD.md) — 产品需求与验收标准（A1~A10）
+- [PRD.md](PRD.md) — 产品需求与验收标准（A1~A15）
 - [TECH_DESIGN.md](TECH_DESIGN.md) — 技术设计：一句话路线、方案对比、数据流
 - [AGENTS.md](AGENTS.md) — AI 协作规则书
