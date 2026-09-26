@@ -37,10 +37,12 @@
 ```
 knowledge-quest/
 ├── AGENTS.md            # 本规则文件
-├── index.html           # 主视图（Day 8）
-├── css/style.css        # 样式
+├── index.html           # 主视图（Day 8）+ 闯关视图（Day 9）
+├── css/style.css        # 样式（Day 9 起：--ink-* 颜色 token 约束）
 ├── js/components.js     # 可复用知识卡片组件
-├── js/main.js           # 页面逻辑（状态调度）
+├── js/main.js           # 页面逻辑（状态调度、双视图、添加卡片）
+├── js/quiz.js           # 闯关模式（Day 9）
+├── js/store.js          # localStorage 持久化（Day 9）
 ├── data/quest-cards.json# mock 卡片数据
 └── docs/                # 截图与文档（按需）
 ```
