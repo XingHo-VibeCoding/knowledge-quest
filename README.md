@@ -29,4 +29,5 @@ python -m http.server 8000
 - [research.md](research.md) — 选题调研：为什么换掉热搜
 - [PRD.md](PRD.md) — 产品需求与验收标准（A1~A15）
 - [TECH_DESIGN.md](TECH_DESIGN.md) — 技术设计：一句话路线、方案对比、数据流
+- [DESIGN_RULES.md](DESIGN_RULES.md) — 设计规则（Day 9 定稿）：检查什么 / 遵守什么 / 怎么验证
 - [AGENTS.md](AGENTS.md) — AI 协作规则书
