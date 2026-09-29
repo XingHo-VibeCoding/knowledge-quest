@@ -44,18 +44,82 @@ function shuffle(arr) {
   return a;
 }
 
+/* ＝＝＝ Day 11：操作反馈条（toast）＋ 可撤销删除 ＝＝＝
+ * 状态机：操作前 → 处理中（按钮禁用）→ 成功（toast+撤销）／失败（toast 原地不动）
+ */
+const toast = {
+  el: document.getElementById('toast'),
+  msg: document.getElementById('toastMsg'),
+  undoBtn: document.getElementById('toastUndoBtn'),
+  timer: null,
+  pending: null, // {card} 待撤销的删除
+
+  show(text, undoCard, seconds) {
+    this.msg.textContent = text;
+    this.pending = undoCard || null;
+    this.undoBtn.classList.toggle('hidden', !undoCard);
+    this.el.classList.remove('hidden');
+    if (this.timer) clearTimeout(this.timer);
+    if (seconds) {
+      this.timer = setTimeout(function () { toast.hide(); }, seconds * 1000);
+    }
+  },
+  hide() {
+    this.el.classList.add('hidden');
+    this.pending = null;
+    if (this.timer) clearTimeout(this.timer);
+  },
+  /* 撤销：写回存储 → 放回内存 → 重渲染 → 反馈「已恢复」 */
+  undo() {
+    if (!this.pending) return;
+    const card = this.pending;
+    this.hide();
+    if (KQStore.restoreCard(card)) {
+      cards.unshift(card);
+      renderFilters(currentSubjects());
+      render();
+      updateStats();
+      this.show('已恢复「' + clip(card.front) + '」✓', null, 3);
+    } else {
+      this.show('恢复失败：本机存储不可用，请刷新后重试', null, 5);
+    }
+  }
+};
+document.getElementById('toastUndoBtn').addEventListener('click', function () { toast.undo(); });
+
+function clip(text) { return text.length > 12 ? text.slice(0, 12) + '…' : text; }
+
+let deleting = false; // 处理中防重复提交
+function deleteCard(card, btn) {
+  if (deleting) return;                       // 状态：处理中 → 忽略重复操作
+  if (!confirm('删除这张自存卡？删除后 5 秒内可以撤销。')) return;
+  deleting = true;
+  btn.disabled = true;                        // 状态：处理中（按钮禁用）
+  btn.textContent = '删除中…';
+  setTimeout(function () {                    // 与第 3 周 API 删除同构：写入是异步的
+    if (!KQStore.removeCard(card.id)) {       // 状态：失败 → 卡片原地不动 + 下一步指引
+      btn.disabled = false;
+      btn.textContent = '✕';
+      deleting = false;
+      toast.show('删除失败：本机存储不可用，请刷新页面后重试', null, 5);
+      return;
+    }
+    cards = cards.filter(function (c) { return c.id !== card.id; }); // 状态：成功
+    renderFilters(currentSubjects());
+    render();
+    updateStats();
+    deleting = false;
+    toast.show('已删除「' + clip(card.front) + '」', card, 5); // 5 秒内可撤销
+  }, 300);
+}
+
 /* 渲染交给组件：用户自存卡带删除按钮 */
 function render() {
   const list = currentSubject === '全部' ? cards : cards.filter(function (c) { return c.subject === currentSubject; });
   KnowledgeCard.renderGrid(els.grid, list, {
     deletable: true,
-    onDelete: function (card) {
-      if (!confirm('删除这张自存卡？')) return;
-      KQStore.removeCard(card.id);
-      cards = cards.filter(function (c) { return c.id !== card.id; });
-      renderFilters(currentSubjects());
-      render();
-      updateStats();
+    onDelete: function (card, btn) {
+      deleteCard(card, btn);
     }
   });
 }

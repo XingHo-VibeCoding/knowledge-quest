@@ -32,7 +32,7 @@ const KnowledgeCard = {
       del.textContent = '✕';
       del.addEventListener('click', function (ev) {
         ev.stopPropagation(); // 别触发翻面
-        if (opts.onDelete) opts.onDelete(card);
+        if (opts.onDelete) opts.onDelete(card, del); // Day 11：多传按钮引用，供禁用/改文案
       });
       el.appendChild(del);
     }

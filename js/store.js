@@ -35,6 +35,13 @@ const KQStore = {
     return this._write(this.CARDS_KEY, this.getCards().filter(c => c.id !== id));
   },
 
+  /** 用户卡片：撤销删除——把卡片放回自存库（Day 11 撤销用） */
+  restoreCard(card) {
+    const cards = this.getCards();
+    cards.unshift(card);
+    return this._write(this.CARDS_KEY, cards);
+  },
+
   /** 战绩：读最佳（{score, total, date}） */
   getBest() { return this._read(this.BEST_KEY, null); },
 

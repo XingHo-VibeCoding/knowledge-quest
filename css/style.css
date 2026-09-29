@@ -278,3 +278,33 @@ main { flex: 1; padding-bottom: 30px; }
   .form-row { flex-direction: column; gap: 4px; }
   .form-row label { width: auto; padding-top: 0; }
 }
+
+/* ＝＝＝ Day 11：操作反馈条（toast）＝＝＝ */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  background: #24292f;           /* 深底 */
+  color: #fff;                   /* on #24292f ≈ 14.7:1，达标 */
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.22);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 99;
+}
+.toast-undo {
+  border: none;
+  background: #f5c518;           /* 琥珀按钮，on #24292f 文字对比 ≈ 10:1 */
+  color: #24292f;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.toast-undo:hover { background: #ffd84d; }
