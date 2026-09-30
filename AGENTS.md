@@ -44,6 +44,7 @@ knowledge-quest/
 ├── js/quiz.js           # 闯关模式（Day 9）
 ├── js/store.js          # localStorage 持久化（Day 9）
 ├── data/quest-cards.json# mock 卡片数据
+├── .workbuddy/skills/kq-frontend-audit/  # 项目内可复用 Skill（Day 12）：SKILL.md + 对比度/可访问性脚本 + 调用记录
 └── docs/                # 截图与文档（按需）
 ```
 

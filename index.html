@@ -27,6 +27,19 @@
 
     <!-- ＝＝＝ 视图一：卡片墙 ＝＝＝ -->
     <div id="view-wall">
+      <!-- Day 12：关键词搜索（与下方科目筛选组合生效，条件写进 URL 可直达） -->
+      <div class="filterbar">
+        <div class="searchwrap">
+          <label class="sr-only" for="searchInput">按关键词搜索卡片</label>
+          <input id="searchInput" class="search" type="search" autocomplete="off"
+                 placeholder="搜关键词，如：干涉 / 客户 / boost" aria-describedby="filterResult">
+        </div>
+        <button id="clearBtn" class="clearbtn hidden" type="button" aria-label="清除全部筛选条件">清除筛选 ✕</button>
+      </div>
+
+      <!-- 筛选结果播报：视觉上是统计行，读屏靠 role=status 听到 -->
+      <p id="filterResult" class="filter-result hidden" role="status" aria-live="polite"></p>
+
       <!-- F2：科目筛选（Day 8 主视图已实现） -->
       <div id="filters" class="filters"></div>
 
@@ -42,7 +55,7 @@
             <option>销售</option>
             <option value="__custom">自定义…</option>
           </select>
-          <input id="fSubjectCustom" class="hidden" type="text" placeholder="科目名，如：光学" maxlength="8">
+          <input id="fSubjectCustom" class="hidden" type="text" aria-label="自定义科目名" placeholder="科目名，如：光学" maxlength="8">
         </div>
         <div class="form-row">
           <label for="fFront">正面（问题/提示）</label>
@@ -58,7 +71,7 @@
         </div>
       </div>
 
-      <!-- 四种页面状态：加载中 / 空 / 错误 / 正常，同一时刻只显示一种 -->
+      <!-- 五种页面状态：加载中 / 空 / 筛选无结果 / 错误 / 正常，同一时刻只显示一种 -->
       <div id="loading" class="loading" aria-live="polite">
         <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
         <div class="skeleton-card"><span class="sk sk-tag"></span><span class="sk sk-line"></span><span class="sk sk-line short"></span></div>
@@ -72,6 +85,14 @@
         <p class="empty-emoji">🗂️</p>
         <p class="empty-title">这里还没有任何知识卡片</p>
         <p class="empty-desc">点右上角「＋ 添加卡片」录入第一张，就能开始闯关了。</p>
+      </div>
+
+      <!-- Day 12 状态 5：筛选无结果（与「卡片库为空」是两件事，文案与出口都不同） -->
+      <div id="noResult" class="empty hidden">
+        <p class="empty-emoji">🔍</p>
+        <p class="empty-title">没有找到相关内容</p>
+        <p class="empty-desc">换个关键词，或把科目切回「全部」；也可以直接清除筛选条件看完整卡片墙。</p>
+        <button id="noResultClearBtn" class="retry save" type="button">清除筛选条件</button>
       </div>
 
       <div id="error" class="error hidden">

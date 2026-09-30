@@ -1,6 +1,7 @@
-/* 知识闯关 — 页面逻辑（Day 8 主视图 + Day 9 双视图/录入/本地持久化） */
+/* 知识闯关 — 页面逻辑（Day 8 主视图 + Day 9 双视图/录入/本地持久化 + Day 12 组合筛选） */
 let cards = [];            // 全部卡片 = mock（quest-cards.json，只读） + 用户自存（localStorage）
 let currentSubject = '全部'; // F2 当前筛选科目
+let currentKeyword = '';     // Day 12 当前搜索关键词（命中正面或背面）
 
 const els = {
   grid: document.getElementById('grid'),
@@ -10,6 +11,11 @@ const els = {
   errorMsg: document.getElementById('errorMsg'),
   stats: document.getElementById('stats'),
   filters: document.getElementById('filters'),
+  // Day 12 筛选
+  searchInput: document.getElementById('searchInput'),
+  clearBtn: document.getElementById('clearBtn'),
+  filterResult: document.getElementById('filterResult'),
+  noResult: document.getElementById('noResult'),
   // 双视图
   viewWall: document.getElementById('view-wall'),
   viewQuiz: document.getElementById('view-quiz'),
@@ -26,10 +32,12 @@ const els = {
   saveCardBtn: document.getElementById('saveCardBtn'),
 };
 
-/* 四态统一调度：loading（骨架屏）/ empty（卡片库为空）/ error（失败+重试）/ normal（卡片墙） */
+/* 五态统一调度：loading（骨架屏）/ empty（卡片库为空）/ noResult（筛选无结果）
+   / error（失败+重试）/ normal（卡片墙），同一时刻只显示一种 */
 function showState(name) {
   els.loading.classList.toggle('hidden', name !== 'loading');
   els.empty.classList.toggle('hidden', name !== 'empty');
+  els.noResult.classList.toggle('hidden', name !== 'noResult');
   els.error.classList.toggle('hidden', name !== 'error');
   els.grid.classList.toggle('hidden', name !== 'normal');
 }
@@ -113,15 +121,44 @@ function deleteCard(card, btn) {
   }, 300);
 }
 
+/* Day 12：筛选 = 科目 AND 关键词（关键词命中正面或背面即可，忽略大小写） */
+function visibleCards() {
+  const kw = currentKeyword.trim().toLowerCase();
+  return cards.filter(function (c) {
+    if (currentSubject !== '全部' && c.subject !== currentSubject) return false;
+    if (!kw) return true;
+    return (String(c.front) + ' ' + String(c.back)).toLowerCase().indexOf(kw) >= 0;
+  });
+}
+function isFiltering() { return currentSubject !== '全部' || currentKeyword.trim() !== ''; }
+
 /* 渲染交给组件：用户自存卡带删除按钮 */
 function render() {
-  const list = currentSubject === '全部' ? cards : cards.filter(function (c) { return c.subject === currentSubject; });
+  const list = visibleCards();
   KnowledgeCard.renderGrid(els.grid, list, {
     deletable: true,
     onDelete: function (card, btn) {
       deleteCard(card, btn);
     }
   });
+  renderFilterStatus(list.length);
+}
+
+/* Day 12 筛选三态：有结果（结果条+清除按钮）/ 无结果（noResult 区块）/ 清空（回到完整列表）。
+   筛选只影响渲染，不动 cards 数据。 */
+function renderFilterStatus(count) {
+  const filtering = isFiltering();
+  els.clearBtn.classList.toggle('hidden', !filtering);
+  els.filterResult.classList.toggle('hidden', !filtering);
+  if (filtering) {
+    const parts = [];
+    if (currentKeyword.trim()) parts.push('关键词「' + currentKeyword.trim() + '」');
+    if (currentSubject !== '全部') parts.push('科目「' + currentSubject + '」');
+    els.filterResult.textContent = '筛选条件：' + parts.join(' + ') +
+      ' → 找到 ' + count + ' 张，共 ' + cards.length + ' 张';
+  }
+  if (cards.length === 0) { showState('empty'); return; }          // 卡片库本来就没内容
+  showState(filtering && count === 0 ? 'noResult' : 'normal');     // 筛选无结果 / 正常
 }
 
 /* 科目列表 = mock 固定四类 + 用户自存卡里的自定义科目（去重） */
@@ -152,10 +189,42 @@ function renderFilters(subjects) {
       currentSubject = subject;
       els.filters.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('active'); });
       btn.classList.add('active');
+      syncHash();
       render(); // 筛选只动渲染，不动数据
     });
     els.filters.appendChild(btn);
   });
+}
+
+/* ＝＝＝ Day 12：清除筛选（第三种情况：清空后恢复完整列表） ＝＝＝ */
+function clearFilters() {
+  if (!isFiltering()) return;
+  currentSubject = '全部';
+  currentKeyword = '';
+  els.searchInput.value = '';
+  syncHash();
+  renderFilters(currentSubjects());
+  render();
+  toast.show('已清除筛选条件，显示全部 ' + cards.length + ' 张卡片', null, 3);
+}
+
+/* 筛选条件 ⇄ URL hash：#q=干涉&subject=专业课（可直达、可分享，截图地址栏自带条件） */
+function applyHashFilters() {
+  const raw = location.hash.replace(/^#/, '');
+  if (!raw || raw === 'quiz') return;
+  const p = new URLSearchParams(raw);
+  const q = (p.get('q') || '').trim();
+  const s = (p.get('subject') || '').trim();
+  currentKeyword = q;
+  els.searchInput.value = q;
+  if (s && ['全部'].concat(currentSubjects()).indexOf(s) >= 0) currentSubject = s;
+}
+function syncHash() {
+  const p = new URLSearchParams();
+  if (currentKeyword.trim()) p.set('q', currentKeyword.trim());
+  if (currentSubject !== '全部') p.set('subject', currentSubject);
+  const qs = p.toString();
+  history.replaceState(null, '', location.pathname + location.search + (qs ? '#' + qs : ''));
 }
 
 /* ＝＝＝ 双视图切换（Day 9）：卡片墙 ⇄ 闯关 ＝＝＝ */
@@ -213,6 +282,7 @@ function load() {
       baseSubjects = data.subjects;
       cards = data.cards.map(function (c) { c.local = false; return c; }).concat(KQStore.getCards());
       if (!cards || cards.length === 0) { showState('empty'); return; } // 状态 2：空
+      applyHashFilters(); // Day 12：先读地址栏里的筛选条件，再渲染
       renderFilters(currentSubjects());
       updateStats();
       render();
@@ -233,10 +303,35 @@ els.wallBtn.addEventListener('click', function () { showView('wall'); });
 els.quizBtn.addEventListener('click', function () { showView('quiz'); });
 els.addBtn.addEventListener('click', function () { toggleAddPanel(); });
 els.saveCardBtn.addEventListener('click', saveCard);
+
+/* Day 12：搜索框即时筛选 + 清除筛选（两个入口）+ Esc 清空 */
+els.searchInput.addEventListener('input', function () {
+  currentKeyword = els.searchInput.value;
+  syncHash();
+  render();
+});
+els.searchInput.addEventListener('keydown', function (ev) {
+  if (ev.key === 'Escape') { ev.preventDefault(); clearFilters(); }
+});
+els.clearBtn.addEventListener('click', clearFilters);
+document.getElementById('noResultClearBtn').addEventListener('click', clearFilters);
+
 els.fSubject.addEventListener('change', function () {
   els.fSubjectCustom.classList.toggle('hidden', els.fSubject.value !== '__custom');
 });
 document.getElementById('backWallBtn').addEventListener('click', function () { showView('wall'); });
+
+/* Day 12：外部改动地址栏（粘贴 #q=干涉 分享链接）时重新应用筛选；
+   syncHash 走 replaceState 不触发本事件，所以不会和输入框打架；#quiz 仍走视图切换 */
+window.addEventListener('hashchange', function () {
+  const raw = location.hash.replace(/^#/, '');
+  if (raw === 'quiz') { showView('quiz'); return; }
+  currentSubject = '全部';
+  currentKeyword = '';
+  applyHashFilters();
+  if (cards.length) { renderFilters(currentSubjects()); render(); }
+  showView('wall');
+});
 
 /* 闯关模块初始化 */
 Quiz.init({
