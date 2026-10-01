@@ -362,3 +362,86 @@ main { flex: 1; padding-bottom: 30px; }
 .chip:focus-visible,
 .retry:focus-visible,
 .card-del:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ＝＝＝ Day 13：地址路由导航 / 卡片详情 / 四状态 ＝＝＝ */
+
+/* 头部导航改成 <a>：视觉还是胶囊按钮，但它现在真是一条"地址"——
+   能右键新标签打开、能复制链接、读屏会播报"链接" */
+.viewbtns .chip {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  line-height: 1.6;
+}
+.viewbtns .chip[aria-current="page"] { background: #fff; color: var(--brand); border-color: #fff; font-weight: 700; }
+
+/* 面包屑：告诉用户"你在第几层"，也是回列表的另一条路 */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 12px;
+  font-size: 13px;
+}
+.crumb-link { color: var(--brand); text-decoration: none; }          /* 复算 on #f4f6fa = 5.81:1 */
+.crumb-link:hover { text-decoration: underline; }
+.crumb-sep { color: var(--ink-secondary); }                          /* 装饰符，也保证不低于 4.5:1 */
+.crumb-now { color: var(--ink-secondary); }                          /* 复算 on #f4f6fa = 5.48:1 */
+
+/* 卡片详情：白底大卡，正反面都摊开，不用翻面 */
+.detail {
+  background: #fff;
+  border: 1px solid #e7e9f0;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(20,30,60,.06);
+}
+.detail-label { font-size: 12px; color: var(--ink-muted); margin-bottom: 6px; }  /* on #fff 4.83:1 */
+.detail-front {
+  font-size: 18px;
+  line-height: 1.7;
+  font-weight: 600;
+  color: var(--ink-strong);                                          /* on #fff ≈ 14.7:1 */
+  word-break: break-all;
+  margin-bottom: 16px;
+}
+.detail-back {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--brand);                                               /* 复算 on #f6f5ff = 5.82:1 */
+  font-weight: 500;
+  word-break: break-all;
+  background: #f6f5ff;
+  border: 1px solid #e2ddfb;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+/* 卡片上的「详情 ›」入口：绝对定位在左下，和右下角的"点卡片看答案"提示各占一角 */
+.card-more {
+  position: absolute;
+  left: 14px;
+  bottom: 8px;
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--brand);                                               /* on #fff 7.0:1 */
+  cursor: pointer;
+}
+.card-more:hover { text-decoration: underline; }
+
+/* 同科目卡片区块 */
+.related { margin-top: 22px; }
+.related-title { font-size: 15px; color: var(--ink-strong); margin-bottom: 10px; }
+.related-empty { font-size: 13px; color: var(--ink-secondary); }      /* on #f4f6fa ≈ 6.9:1 */
+
+/* 焦点环：新加的每个可点元素都要有可见焦点（Skill 可访问性检查项） */
+.card-more:focus-visible,
+.crumb-link:focus-visible,
+.detail .retry:focus-visible,
+.card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* 卡片下部给「详情 ›」留一行位置，文字不会压到它 */
+.face { padding-bottom: 18px; }

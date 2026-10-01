@@ -12,11 +12,13 @@
       <h1>知识闯关</h1>
       <p class="sub">把知识存成卡片，复习时就是一场游戏</p>
       <div class="toolbar">
-        <!-- 视图切换：卡片墙 / 闯关（Day 9） -->
-        <div class="viewbtns">
-          <button id="wallBtn" class="chip active" type="button">📚 卡片墙</button>
-          <button id="quizBtn" class="chip" type="button">⚔️ 开始闯关</button>
-        </div>
+        <!-- 视图切换（Day 13：从「按钮切换」升级为「地址路由」——用链接是因为
+             导航本身就是"跳到某个地址"，链接自带回车键、右键新标签、读屏播报「链接」，
+             并用 aria-current="page" 告诉读屏当前在哪一页） -->
+        <nav class="viewbtns" aria-label="页面导航">
+          <a id="tabWall" class="chip" href="#/wall" aria-current="page">📚 卡片墙</a>
+          <a id="tabQuiz" class="chip" href="#/quiz">⚔️ 开始闯关</a>
+        </nav>
         <button id="addBtn" class="shuffle" type="button">＋ 添加卡片</button>
       </div>
     </div>
@@ -25,8 +27,9 @@
   <main class="container">
     <p id="stats" class="stats"></p>
 
-    <!-- ＝＝＝ 视图一：卡片墙 ＝＝＝ -->
+    <!-- ＝＝＝ 视图一：卡片墙（#/wall） ＝＝＝ -->
     <div id="view-wall">
+      <h2 class="sr-only">卡片墙</h2>
       <!-- Day 12：关键词搜索（与下方科目筛选组合生效，条件写进 URL 可直达） -->
       <div class="filterbar">
         <div class="searchwrap">
@@ -103,8 +106,9 @@
       <div id="grid" class="grid"></div>
     </div>
 
-    <!-- ＝＝＝ 视图二：闯关模式（Day 9） ＝＝＝ -->
+    <!-- ＝＝＝ 视图二：闯关模式（#/quiz，Day 9） ＝＝＝ -->
     <div id="view-quiz" class="quiz hidden">
+      <h2 class="sr-only">闯关</h2>
       <div id="qView">
         <p id="qProgress" class="q-progress"></p>
         <div class="quiz-card">
@@ -142,6 +146,47 @@
         </div>
       </div>
     </div>
+    <!-- ＝＝＝ 视图三：卡片详情（#/card/<id>，Day 13 多级页面的第二级） ＝＝＝ -->
+    <div id="view-detail" class="hidden">
+      <h2 class="sr-only">卡片详情</h2>
+
+      <!-- 面包屑：告诉用户"你在哪一层"，也是回列表的第二条路（第一条是浏览器后退） -->
+      <nav class="crumbs" aria-label="面包屑">
+        <a class="crumb-link" href="#/wall">卡片墙</a>
+        <span class="crumb-sep" aria-hidden="true">›</span>
+        <span class="crumb-now" aria-current="page">卡片详情</span>
+      </nav>
+
+      <!-- 详情正常态 -->
+      <article id="detailBody" class="detail">
+        <div class="card-top">
+          <span id="dSubject" class="badge"></span>
+          <span id="dMeta" class="meta"></span>
+        </div>
+        <p class="detail-label">正面 · 问题</p>
+        <p id="dFront" class="detail-front"></p>
+        <p class="detail-label">背面 · 答案</p>
+        <p id="dBack" class="detail-back"></p>
+        <div class="quiz-actions">
+          <button id="dBackBtn" class="retry miss" type="button">← 返回上一页</button>
+          <button id="dQuizBtn" class="retry save" type="button">⚔️ 进入闯关</button>
+        </div>
+      </article>
+
+      <!-- 详情边界态：地址里的卡片不存在（删掉了 / 手输错了 / 分享链接过期） -->
+      <div id="detailMissing" class="empty hidden">
+        <p class="empty-emoji">🧭</p>
+        <p class="empty-title">这张卡片找不到了</p>
+        <p class="empty-desc">它可能已经被删除，或者链接里的编号不对。回卡片墙看看其它内容吧。</p>
+        <button id="detailBackBtn" class="retry save" type="button">← 回到卡片墙</button>
+      </div>
+
+      <!-- 同科目卡片：详情 → 详情，多级导航的横向补充 -->
+      <section id="relatedWrap" class="related">
+        <h3 class="related-title">同科目卡片</h3>
+        <div id="relatedGrid" class="grid"></div>
+      </section>
+    </div>
   </main>
 
   <footer class="footer">
@@ -156,6 +201,7 @@
     <button id="toastUndoBtn" class="toast-undo hidden" type="button">撤销</button>
   </div>
 
+  <script src="js/router.js"></script>
   <script src="js/store.js"></script>
   <script src="js/components.js"></script>
   <script src="js/quiz.js"></script>

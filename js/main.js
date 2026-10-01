@@ -1,7 +1,11 @@
-/* 知识闯关 — 页面逻辑（Day 8 主视图 + Day 9 双视图/录入/本地持久化 + Day 12 组合筛选） */
+/* 知识闯关 — 页面逻辑
+ *  Day 8 主视图 + Day 9 双视图/录入/本地持久化 + Day 12 组合筛选 + Day 13 三视图路由与四状态
+ */
 let cards = [];            // 全部卡片 = mock（quest-cards.json，只读） + 用户自存（localStorage）
 let currentSubject = '全部'; // F2 当前筛选科目
 let currentKeyword = '';     // Day 12 当前搜索关键词（命中正面或背面）
+let currentRoute = 'wall';   // Day 13 当前视图名：wall / quiz / card
+let demoState = '';          // Day 13 状态演示：loading / empty / error（只有地址栏给了 demo 参数才有值）
 
 const els = {
   grid: document.getElementById('grid'),
@@ -16,11 +20,21 @@ const els = {
   clearBtn: document.getElementById('clearBtn'),
   filterResult: document.getElementById('filterResult'),
   noResult: document.getElementById('noResult'),
-  // 双视图
+  // 三视图（Day 13：卡片墙 / 闯关 / 卡片详情）
   viewWall: document.getElementById('view-wall'),
   viewQuiz: document.getElementById('view-quiz'),
-  wallBtn: document.getElementById('wallBtn'),
-  quizBtn: document.getElementById('quizBtn'),
+  viewDetail: document.getElementById('view-detail'),
+  tabWall: document.getElementById('tabWall'),
+  tabQuiz: document.getElementById('tabQuiz'),
+  // 卡片详情（Day 13）
+  detailBody: document.getElementById('detailBody'),
+  detailMissing: document.getElementById('detailMissing'),
+  relatedWrap: document.getElementById('relatedWrap'),
+  relatedGrid: document.getElementById('relatedGrid'),
+  dSubject: document.getElementById('dSubject'),
+  dMeta: document.getElementById('dMeta'),
+  dFront: document.getElementById('dFront'),
+  dBack: document.getElementById('dBack'),
   // 添加卡片面板
   addBtn: document.getElementById('addBtn'),
   addPanel: document.getElementById('addPanel'),
@@ -139,7 +153,8 @@ function render() {
     deletable: true,
     onDelete: function (card, btn) {
       deleteCard(card, btn);
-    }
+    },
+    onOpen: openDetail   // Day 13：卡片上有「详情 ›」入口，进第二级页面
   });
   renderFilterStatus(list.length);
 }
@@ -147,6 +162,8 @@ function render() {
 /* Day 12 筛选三态：有结果（结果条+清除按钮）/ 无结果（noResult 区块）/ 清空（回到完整列表）。
    筛选只影响渲染，不动 cards 数据。 */
 function renderFilterStatus(count) {
+  // Day 13：地址栏求了状态演示时，演示态优先——后续任何重渲染都不许把它冲掉
+  if (demoState) { showState(demoState); return; }
   const filtering = isFiltering();
   els.clearBtn.classList.toggle('hidden', !filtering);
   els.filterResult.classList.toggle('hidden', !filtering);
@@ -208,32 +225,85 @@ function clearFilters() {
   toast.show('已清除筛选条件，显示全部 ' + cards.length + ' 张卡片', null, 3);
 }
 
-/* 筛选条件 ⇄ URL hash：#q=干涉&subject=专业课（可直达、可分享，截图地址栏自带条件） */
-function applyHashFilters() {
-  const raw = location.hash.replace(/^#/, '');
-  if (!raw || raw === 'quiz') return;
-  const p = new URLSearchParams(raw);
-  const q = (p.get('q') || '').trim();
-  const s = (p.get('subject') || '').trim();
-  currentKeyword = q;
-  els.searchInput.value = q;
-  if (s && ['全部'].concat(currentSubjects()).indexOf(s) >= 0) currentSubject = s;
-}
+/* 筛选条件 ⇄ 地址栏：#/wall?q=干涉&subject=专业课（可直达、可分享，截图地址栏自带条件）
+   Day 13：筛选参数挂在路由上，用 replace 更新——改搜索词不该把浏览器历史塞满 */
 function syncHash() {
   const p = new URLSearchParams();
   if (currentKeyword.trim()) p.set('q', currentKeyword.trim());
   if (currentSubject !== '全部') p.set('subject', currentSubject);
-  const qs = p.toString();
-  history.replaceState(null, '', location.pathname + location.search + (qs ? '#' + qs : ''));
+  if (demoState) p.set('demo', demoState);
+  Router.replace(Router.build('wall', [], p));
 }
 
-/* ＝＝＝ 双视图切换（Day 9）：卡片墙 ⇄ 闯关 ＝＝＝ */
+/* ＝＝＝ 视图切换（Day 9 双视图 → Day 13 三视图 + 地址路由） ＝＝＝
+   切换的唯一出口是 applyRoute：地址认视图，视图不认识按钮。
+   所以"用地址直达"和"点导航点击"走的是同一条路，不会出现两套状态。 */
 function showView(name) {
+  currentRoute = name;
   els.viewWall.classList.toggle('hidden', name !== 'wall');
   els.viewQuiz.classList.toggle('hidden', name !== 'quiz');
-  els.wallBtn.classList.toggle('active', name === 'wall');
-  els.quizBtn.classList.toggle('active', name === 'quiz');
+  els.viewDetail.classList.toggle('hidden', name !== 'card');
+  // 当前页不仅靠颜色高亮：aria-current="page" 让读屏也知道自己在哪一页
+  els.tabWall.classList.toggle('active', name === 'wall');
+  els.tabQuiz.classList.toggle('active', name === 'quiz');
+  els.tabWall.setAttribute('aria-current', name === 'wall' ? 'page' : 'false');
+  els.tabQuiz.setAttribute('aria-current', name === 'quiz' ? 'page' : 'false');
+  const titles = { wall: '卡片墙', quiz: '闯关', card: '卡片详情' };
+  document.title = titles[name] + ' · 知识闯关';
   if (name === 'quiz') Quiz.start(cards); else Quiz.stop();
+}
+
+/* ＝＝＝ Day 13：卡片详情视图（多级页面的第二级） ＝＝＝ */
+function openDetail(card) { Router.go(Router.build('card', [card.id])); }
+
+function renderDetail(id) {
+  const card = cards.filter(function (c) { return String(c.id) === String(id); })[0];
+  const found = !!card;
+  // 详情也有自己的边界：编号对不上时给「找不到」而不是白屏
+  els.detailBody.classList.toggle('hidden', !found);
+  els.detailMissing.classList.toggle('hidden', found);
+  els.relatedWrap.classList.toggle('hidden', !found);
+  if (!found) return;
+  els.dSubject.textContent = card.subject;
+  els.dSubject.className = 'badge badge-' + card.subject;
+  els.dMeta.textContent = (card.local ? '自存卡 · ' : '内置卡 · ') + card.type + ' · Lv.' + card.level;
+  els.dFront.textContent = card.front;
+  els.dBack.textContent = card.back;
+  // 同科目卡片：从详情还有地方可去，别让用户走进死胡同（点进去还是详情，链路自洽）
+  const related = cards.filter(function (c) {
+    return c.subject === card.subject && String(c.id) !== String(card.id);
+  }).slice(0, 6);
+  if (related.length === 0) {
+    els.relatedGrid.innerHTML = '<p class="related-empty">这个科目暂时没有别的卡片。</p>';
+  } else {
+    KnowledgeCard.renderGrid(els.relatedGrid, related, { onOpen: openDetail });
+  }
+}
+
+/* ＝＝＝ Day 13：路由分发（地址 → 视图），三个视图各一条分支 ＝＝＝
+   #/wall（可带 ?q= &subject= &demo=） / #/quiz / #/card/<id> */
+function applyRoute(route) {
+  const r = route || Router.parse();
+  demoState = r.query.get('demo') || '';
+  // 演示态要能自证是演示：错误态文案说明这是模拟，别让人以为真坏了
+  if (demoState === 'error') {
+    els.errorMsg.textContent = '卡片加载失败（演示：模拟接口异常）。点重试会重新请求一次。';
+  }
+  if (r.name === 'card') {
+    showView('card');
+    renderDetail(r.params[0] || '');
+    return;
+  }
+  if (r.name === 'quiz') { showView('quiz'); return; }
+  // 卡片墙（含筛选参数；切回来时先清空旧条件，避免上一个关键词阴魂不散）
+  showView('wall');
+  currentSubject = '全部';
+  currentKeyword = (r.query.get('q') || '').trim();
+  els.searchInput.value = currentKeyword;
+  const s = (r.query.get('subject') || '').trim();
+  if (s && ['全部'].concat(currentSubjects()).indexOf(s) >= 0) currentSubject = s;
+  if (cards.length) { renderFilters(currentSubjects()); render(); }
+  else if (demoState) showState(demoState);
 }
 
 /* ＝＝＝ 添加卡片（Day 9）：存 localStorage，刷新不丢 ＝＝＝ */
@@ -281,13 +351,10 @@ function load() {
     .then(function (data) {
       baseSubjects = data.subjects;
       cards = data.cards.map(function (c) { c.local = false; return c; }).concat(KQStore.getCards());
-      if (!cards || cards.length === 0) { showState('empty'); return; } // 状态 2：空
-      applyHashFilters(); // Day 12：先读地址栏里的筛选条件，再渲染
+      if (!cards || cards.length === 0) { showState('empty'); return; } // 状态 2：空（卡片库本来就没内容）
       renderFilters(currentSubjects());
       updateStats();
-      render();
-      showState('normal'); // 状态 4：正常
-      if (location.hash === '#quiz') showView('quiz'); // #quiz 直达闯关（数据就绪后再切）
+      applyRoute(); // Day 13：数据就绪后按地址栏决定显示哪个视图、哪种状态
     })
     .catch(function (e) {
       els.errorMsg.textContent = '卡片加载失败（' + e.message + '）。file:// 直开会拦 fetch，请用本地服务器访问。';
@@ -299,8 +366,11 @@ function load() {
 /* ＝＝＝ 事件绑定 ＝＝＝ */
 document.getElementById('retryBtn').addEventListener('click', load);
 
-els.wallBtn.addEventListener('click', function () { showView('wall'); });
-els.quizBtn.addEventListener('click', function () { showView('quiz'); });
+/* Day 13：导航用 <a href="#/..."> 原生链接，点它浏览器自己改地址，
+   所以这里不需要再绑点击事件——绑了反而会和 hashchange 打架，出现两套状态。 */
+document.getElementById('dBackBtn').addEventListener('click', function () { Router.back('#/wall'); });
+document.getElementById('dQuizBtn').addEventListener('click', function () { Router.go(Router.build('quiz')); });
+document.getElementById('detailBackBtn').addEventListener('click', function () { Router.go(Router.build('wall')); });
 els.addBtn.addEventListener('click', function () { toggleAddPanel(); });
 els.saveCardBtn.addEventListener('click', saveCard);
 
@@ -319,18 +389,13 @@ document.getElementById('noResultClearBtn').addEventListener('click', clearFilte
 els.fSubject.addEventListener('change', function () {
   els.fSubjectCustom.classList.toggle('hidden', els.fSubject.value !== '__custom');
 });
-document.getElementById('backWallBtn').addEventListener('click', function () { showView('wall'); });
+document.getElementById('backWallBtn').addEventListener('click', function () { Router.go(Router.build('wall')); });
 
-/* Day 12：外部改动地址栏（粘贴 #q=干涉 分享链接）时重新应用筛选；
-   syncHash 走 replaceState 不触发本事件，所以不会和输入框打架；#quiz 仍走视图切换 */
-window.addEventListener('hashchange', function () {
-  const raw = location.hash.replace(/^#/, '');
-  if (raw === 'quiz') { showView('quiz'); return; }
-  currentSubject = '全部';
-  currentKeyword = '';
-  applyHashFilters();
-  if (cards.length) { renderFilters(currentSubjects()); render(); }
-  showView('wall');
+/* Day 13：地址栏一变就交给路由分发——浏览器前进/后退、粘贴链接、点导航，全是这一条路。
+   数据还没到时不处理，load() 完成后会自己 applyRoute 一次。 */
+Router.onChange(function (route) {
+  if (!cards.length) return;
+  applyRoute(route);
 });
 
 /* 闯关模块初始化 */
