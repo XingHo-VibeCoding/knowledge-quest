@@ -73,7 +73,8 @@ agent_created: true
 ### ④ 移动端适配（375px）
 - `.grid` / `.loading` 在 480px 断点降为单列；`.toolbar` / 表单改为纵向堆叠；chips 必须 `flex-wrap: wrap`。
 - 长文本 `word-break: break-all`；表格/代码块允许横向滚动，**页面本身不允许**。
-- 判据：CDP `Emulation.setDeviceMetricsOverride` 真 375px（Windows Edge `--window-size=375` 是假 375，最小窗宽 ~500px）后 `scrollWidth <= clientWidth`。
+- **触屏点击目标 ≥44×44px**（Day 14 起纳入）：纯文字链接式的入口（如卡片上的「详情 ›」原为 39×20px）在真机上"看得见点不中"，且紧邻的翻面热区会误触——入口类元素必须做成 ≥44px 高的可见按钮；不达标的元素逐个记录，允许挂账但不允许不记录。
+- 判据：CDP `Emulation.setDeviceMetricsOverride` 真 375px（Windows Edge `--window-size=375` 是假 375，最小窗宽 ~500px）后 `scrollWidth <= clientWidth`；点击目标尺寸量脚本输出见 CALL_LOG 调用 #4（修复前 33 个 <44px → 修复后 9 个）。
 
 ### ⑤ 可访问性（余力加练项，Day 12 起纳入）
 - 每个 `button / input / select / textarea / a[href]` 有可访问名（可见文字，或 `aria-label`）。
@@ -103,3 +104,4 @@ agent_created: true
 | 半透明玻璃底（`rgba(255,255,255,.16)`）叠白字（Day 12） | 3.11~3.99:1 | "提亮"叠加会让白字失效，改用压暗叠加 |
 | 提示文字落在 `#f4f6fa` 浅灰底（Day 12） | 4.47:1 | 与白底差一点点也会掉到线下，浅灰底必须单独复算 |
 | `.hidden` 被 `.toast` 的 `display:flex` 反杀（Day 12 截图发现，Day 11 引入） | toast 一直以 32×20 空黑条可见 | 新增会带 `display` 声明的可隐藏组件后，必须复查 `.hidden` 仍生效；工具类已用 `!important` 兜底 |
+| 「详情 ›」入口做成 39×20px 纯文字（Day 14 预演走查发现，Day 13 引入） | 低于 44px 触屏最小点击目标，紧邻翻面热区误触 | 入口类元素必须 ≥44px 且是可见按钮；修复后 309×44，超小目标 33→9 |

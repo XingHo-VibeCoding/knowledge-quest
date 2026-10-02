@@ -1,79 +1,436 @@
 {
   "note": "知识闯关「文字 x 背景」配对清单。改 CSS 时新增/调整配对必须同步登记，否则视为未验证。半透明底按叠加后的等效色登记（等效 = α×前景 + (1-α)×底）。",
-  "updated": "2026-10-01",
+  "updated": "2026-10-02",
   "history": [
     "2026-09-30 修改前基线：45 对，FAIL 7 对（头部副标题 3.99、头部玻璃按钮 3.12/hover 2.51、删除按钮 4.32、表单警告 3.19、判断题标签 4.47）",
     "2026-09-30 修改后：7 处全部修复（头部渐变收深 + 玻璃底改压暗叠加 + 3 处换 token/加深），新增筛选相关 8 对",
-    "2026-10-01 Day 13 新增 14 对（导航标签 / 面包屑 / 详情页 / 卡片详情入口 / 同科目区块），共 67 对"
+    "2026-10-01 Day 13 新增 14 对（导航标签 / 面包屑 / 详情页 / 卡片详情入口 / 同科目区块），共 67 对",
+    "2026-10-02 Day 14 最小修复新增 1 对（详情入口按钮：#4f46e5 on #f6f5ff = 5.82:1 达标）；触屏点击目标检查并入修改后验证（详情入口 39x20 -> 309x44）"
   ],
   "pairs": [
-    { "name": "头部主标题(渐变暗端)", "fg": "#ffffff", "bg": "#4338ca", "size": 28, "bold": true },
-    { "name": "头部主标题(渐变亮端)", "fg": "#ffffff", "bg": "#4f46e5", "size": 28, "bold": true },
-    { "name": "头部副标题(渐变亮端)", "fg": "#ffffff", "bg": "#4f46e5", "size": 14 },
-    { "name": "视图切换按钮(玻璃底=黑18%叠亮端)", "fg": "#ffffff", "bg": "#4139bc", "size": 13 },
-    { "name": "视图切换按钮 hover(黑28%叠亮端)", "fg": "#ffffff", "bg": "#3932a5", "size": 13 },
-    { "name": "添加卡片按钮(玻璃底=黑18%叠亮端)", "fg": "#ffffff", "bg": "#4139bc", "size": 13 },
-    { "name": "搜索框输入文字", "fg": "#24292f", "bg": "#ffffff", "size": 14 },
-    { "name": "搜索框 placeholder", "fg": "#6b7280", "bg": "#ffffff", "size": 14 },
-    { "name": "筛选结果条", "fg": "#5f6470", "bg": "#f4f6fa", "size": 13 },
-    { "name": "清除筛选按钮", "fg": "#4f46e5", "bg": "#ffffff", "size": 13 },
-    { "name": "清除筛选按钮 hover", "fg": "#4f46e5", "bg": "#f1f2fb", "size": 13 },
-    { "name": "筛选 chip", "fg": "#424761", "bg": "#ffffff", "size": 13 },
-    { "name": "筛选 chip hover", "fg": "#424761", "bg": "#f1f2fb", "size": 13 },
-    { "name": "筛选 chip 选中", "fg": "#ffffff", "bg": "#4f46e5", "size": 13 },
-    { "name": "统计行", "fg": "#5f6470", "bg": "#f4f6fa", "size": 13 },
-    { "name": "页面底正文", "fg": "#24292f", "bg": "#f4f6fa", "size": 14 },
-    { "name": "徽章-口语", "fg": "#2b6cb0", "bg": "#e8f0fd", "size": 12, "bold": true },
-    { "name": "徽章-教务", "fg": "#7c3aed", "bg": "#f3e8fd", "size": 12, "bold": true },
-    { "name": "徽章-专业课", "fg": "#0b7a43", "bg": "#e6f7ee", "size": 12, "bold": true },
-    { "name": "徽章-销售", "fg": "#92400e", "bg": "#fdeee0", "size": 12, "bold": true },
-    { "name": "卡片元信息 .meta", "fg": "#6b7280", "bg": "#ffffff", "size": 11 },
-    { "name": "卡片提示 .hint", "fg": "#6f7787", "bg": "#ffffff", "size": 11 },
-    { "name": "翻面答案", "fg": "#4f46e5", "bg": "#f6f5ff", "size": 14, "bold": true },
-    { "name": "自存标签 .local-tag", "fg": "#0b7a43", "bg": "#e6f7ee", "size": 10, "bold": true },
-    { "name": "卡片删除按钮 ✕", "fg": "#5f6470", "bg": "#f1f2f6", "size": 12 },
-    { "name": "卡片删除按钮 hover", "fg": "#c9302c", "bg": "#fdeaea", "size": 12 },
-    { "name": "空状态标题", "fg": "#24292f", "bg": "#ffffff", "size": 16, "bold": true },
-    { "name": "空状态描述", "fg": "#6b7280", "bg": "#ffffff", "size": 13 },
-    { "name": "无结果标题「没有找到相关内容」", "fg": "#24292f", "bg": "#ffffff", "size": 16, "bold": true },
-    { "name": "无结果描述", "fg": "#6b7280", "bg": "#ffffff", "size": 13 },
-    { "name": "无结果清除按钮", "fg": "#ffffff", "bg": "#4f46e5", "size": 13 },
-    { "name": "错误条文字", "fg": "#c9302c", "bg": "#fdeaea", "size": 14 },
-    { "name": "重试按钮", "fg": "#ffffff", "bg": "#c9302c", "size": 13 },
-    { "name": "页脚", "fg": "#6b7280", "bg": "#ffffff", "size": 12 },
-    { "name": "表单标签", "fg": "#5f6470", "bg": "#ffffff", "size": 13 },
-    { "name": "表单提示", "fg": "#6b7280", "bg": "#ffffff", "size": 12 },
-    { "name": "表单成功提示", "fg": "#0b7a43", "bg": "#ffffff", "size": 12 },
-    { "name": "表单警告提示", "fg": "#b45309", "bg": "#ffffff", "size": 12 },
-    { "name": "面板标题", "fg": "#4f46e5", "bg": "#ffffff", "size": 15 },
-    { "name": "存入卡片库按钮", "fg": "#ffffff", "bg": "#4f46e5", "size": 13 },
-    { "name": "闯关进度", "fg": "#4f46e5", "bg": "#f4f6fa", "size": 14 },
-    { "name": "闯关题面", "fg": "#24292f", "bg": "#ffffff", "size": 17 },
-    { "name": "闯关提示 .q-tip", "fg": "#6f7787", "bg": "#ffffff", "size": 11 },
-    { "name": "答案标签 .q-back-label", "fg": "#6b7280", "bg": "#ffffff", "size": 11 },
-    { "name": "闯关答案文字", "fg": "#4f46e5", "bg": "#ffffff", "size": 15 },
-    { "name": "判断题标签 .judge-label", "fg": "#5f6470", "bg": "#f4f6fa", "size": 13 },
-    { "name": "成绩数字", "fg": "#4f46e5", "bg": "#ffffff", "size": 34 },
-    { "name": "成绩满分绿", "fg": "#0f9d58", "bg": "#ffffff", "size": 34 },
-    { "name": "最佳记录 .q-best", "fg": "#6b7280", "bg": "#ffffff", "size": 12 },
-    { "name": "复习条目", "fg": "#24292f", "bg": "#fafbfd", "size": 13 },
-    { "name": "复习未答条目", "fg": "#5f6470", "bg": "#fafbfd", "size": 13 },
-    { "name": "toast 文字", "fg": "#ffffff", "bg": "#24292f", "size": 13 },
-    { "name": "toast 撤销按钮", "fg": "#24292f", "bg": "#f5c518", "size": 13, "bold": true },
-
-    { "name": "Day13 导航标签 未选中(玻璃底=黑18%叠亮端)", "fg": "#ffffff", "bg": "#4139bc", "size": 13 },
-    { "name": "Day13 导航标签 当前页(白底靛蓝字)", "fg": "#4f46e5", "bg": "#ffffff", "size": 13, "bold": true },
-    { "name": "Day13 面包屑链接", "fg": "#4f46e5", "bg": "#f4f6fa", "size": 13 },
-    { "name": "Day13 面包屑当前项/分隔符", "fg": "#5f6470", "bg": "#f4f6fa", "size": 13 },
-    { "name": "Day13 详情小标签「正面·问题」", "fg": "#6b7280", "bg": "#ffffff", "size": 12 },
-    { "name": "Day13 详情正面文字", "fg": "#24292f", "bg": "#ffffff", "size": 18, "bold": true },
-    { "name": "Day13 详情答案文字", "fg": "#4f46e5", "bg": "#f6f5ff", "size": 15, "bold": true },
-    { "name": "Day13 卡片「详情 ›」入口", "fg": "#4f46e5", "bg": "#ffffff", "size": 12 },
-    { "name": "Day13 同科目区块标题", "fg": "#24292f", "bg": "#f4f6fa", "size": 15 },
-    { "name": "Day13 同科目无卡提示", "fg": "#5f6470", "bg": "#f4f6fa", "size": 13 },
-    { "name": "Day13 详情「返回上一页」按钮", "fg": "#ffffff", "bg": "#6f7787", "size": 13 },
-    { "name": "Day13 详情找不到 标题", "fg": "#24292f", "bg": "#ffffff", "size": 16, "bold": true },
-    { "name": "Day13 详情找不到 描述", "fg": "#6b7280", "bg": "#ffffff", "size": 13 },
-    { "name": "Day13 详情「回到卡片墙」按钮", "fg": "#ffffff", "bg": "#4f46e5", "size": 13 }
+    {
+      "name": "头部主标题(渐变暗端)",
+      "fg": "#ffffff",
+      "bg": "#4338ca",
+      "size": 28,
+      "bold": true
+    },
+    {
+      "name": "头部主标题(渐变亮端)",
+      "fg": "#ffffff",
+      "bg": "#4f46e5",
+      "size": 28,
+      "bold": true
+    },
+    {
+      "name": "头部副标题(渐变亮端)",
+      "fg": "#ffffff",
+      "bg": "#4f46e5",
+      "size": 14
+    },
+    {
+      "name": "视图切换按钮(玻璃底=黑18%叠亮端)",
+      "fg": "#ffffff",
+      "bg": "#4139bc",
+      "size": 13
+    },
+    {
+      "name": "视图切换按钮 hover(黑28%叠亮端)",
+      "fg": "#ffffff",
+      "bg": "#3932a5",
+      "size": 13
+    },
+    {
+      "name": "添加卡片按钮(玻璃底=黑18%叠亮端)",
+      "fg": "#ffffff",
+      "bg": "#4139bc",
+      "size": 13
+    },
+    {
+      "name": "搜索框输入文字",
+      "fg": "#24292f",
+      "bg": "#ffffff",
+      "size": 14
+    },
+    {
+      "name": "搜索框 placeholder",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 14
+    },
+    {
+      "name": "筛选结果条",
+      "fg": "#5f6470",
+      "bg": "#f4f6fa",
+      "size": 13
+    },
+    {
+      "name": "清除筛选按钮",
+      "fg": "#4f46e5",
+      "bg": "#ffffff",
+      "size": 13
+    },
+    {
+      "name": "清除筛选按钮 hover",
+      "fg": "#4f46e5",
+      "bg": "#f1f2fb",
+      "size": 13
+    },
+    {
+      "name": "筛选 chip",
+      "fg": "#424761",
+      "bg": "#ffffff",
+      "size": 13
+    },
+    {
+      "name": "筛选 chip hover",
+      "fg": "#424761",
+      "bg": "#f1f2fb",
+      "size": 13
+    },
+    {
+      "name": "筛选 chip 选中",
+      "fg": "#ffffff",
+      "bg": "#4f46e5",
+      "size": 13
+    },
+    {
+      "name": "统计行",
+      "fg": "#5f6470",
+      "bg": "#f4f6fa",
+      "size": 13
+    },
+    {
+      "name": "页面底正文",
+      "fg": "#24292f",
+      "bg": "#f4f6fa",
+      "size": 14
+    },
+    {
+      "name": "徽章-口语",
+      "fg": "#2b6cb0",
+      "bg": "#e8f0fd",
+      "size": 12,
+      "bold": true
+    },
+    {
+      "name": "徽章-教务",
+      "fg": "#7c3aed",
+      "bg": "#f3e8fd",
+      "size": 12,
+      "bold": true
+    },
+    {
+      "name": "徽章-专业课",
+      "fg": "#0b7a43",
+      "bg": "#e6f7ee",
+      "size": 12,
+      "bold": true
+    },
+    {
+      "name": "徽章-销售",
+      "fg": "#92400e",
+      "bg": "#fdeee0",
+      "size": 12,
+      "bold": true
+    },
+    {
+      "name": "卡片元信息 .meta",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 11
+    },
+    {
+      "name": "卡片提示 .hint",
+      "fg": "#6f7787",
+      "bg": "#ffffff",
+      "size": 11
+    },
+    {
+      "name": "翻面答案",
+      "fg": "#4f46e5",
+      "bg": "#f6f5ff",
+      "size": 14,
+      "bold": true
+    },
+    {
+      "name": "自存标签 .local-tag",
+      "fg": "#0b7a43",
+      "bg": "#e6f7ee",
+      "size": 10,
+      "bold": true
+    },
+    {
+      "name": "卡片删除按钮 ✕",
+      "fg": "#5f6470",
+      "bg": "#f1f2f6",
+      "size": 12
+    },
+    {
+      "name": "卡片删除按钮 hover",
+      "fg": "#c9302c",
+      "bg": "#fdeaea",
+      "size": 12
+    },
+    {
+      "name": "空状态标题",
+      "fg": "#24292f",
+      "bg": "#ffffff",
+      "size": 16,
+      "bold": true
+    },
+    {
+      "name": "空状态描述",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 13
+    },
+    {
+      "name": "无结果标题「没有找到相关内容」",
+      "fg": "#24292f",
+      "bg": "#ffffff",
+      "size": 16,
+      "bold": true
+    },
+    {
+      "name": "无结果描述",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 13
+    },
+    {
+      "name": "无结果清除按钮",
+      "fg": "#ffffff",
+      "bg": "#4f46e5",
+      "size": 13
+    },
+    {
+      "name": "错误条文字",
+      "fg": "#c9302c",
+      "bg": "#fdeaea",
+      "size": 14
+    },
+    {
+      "name": "重试按钮",
+      "fg": "#ffffff",
+      "bg": "#c9302c",
+      "size": 13
+    },
+    {
+      "name": "页脚",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 12
+    },
+    {
+      "name": "表单标签",
+      "fg": "#5f6470",
+      "bg": "#ffffff",
+      "size": 13
+    },
+    {
+      "name": "表单提示",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 12
+    },
+    {
+      "name": "表单成功提示",
+      "fg": "#0b7a43",
+      "bg": "#ffffff",
+      "size": 12
+    },
+    {
+      "name": "表单警告提示",
+      "fg": "#b45309",
+      "bg": "#ffffff",
+      "size": 12
+    },
+    {
+      "name": "面板标题",
+      "fg": "#4f46e5",
+      "bg": "#ffffff",
+      "size": 15
+    },
+    {
+      "name": "存入卡片库按钮",
+      "fg": "#ffffff",
+      "bg": "#4f46e5",
+      "size": 13
+    },
+    {
+      "name": "闯关进度",
+      "fg": "#4f46e5",
+      "bg": "#f4f6fa",
+      "size": 14
+    },
+    {
+      "name": "闯关题面",
+      "fg": "#24292f",
+      "bg": "#ffffff",
+      "size": 17
+    },
+    {
+      "name": "闯关提示 .q-tip",
+      "fg": "#6f7787",
+      "bg": "#ffffff",
+      "size": 11
+    },
+    {
+      "name": "答案标签 .q-back-label",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 11
+    },
+    {
+      "name": "闯关答案文字",
+      "fg": "#4f46e5",
+      "bg": "#ffffff",
+      "size": 15
+    },
+    {
+      "name": "判断题标签 .judge-label",
+      "fg": "#5f6470",
+      "bg": "#f4f6fa",
+      "size": 13
+    },
+    {
+      "name": "成绩数字",
+      "fg": "#4f46e5",
+      "bg": "#ffffff",
+      "size": 34
+    },
+    {
+      "name": "成绩满分绿",
+      "fg": "#0f9d58",
+      "bg": "#ffffff",
+      "size": 34
+    },
+    {
+      "name": "最佳记录 .q-best",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 12
+    },
+    {
+      "name": "复习条目",
+      "fg": "#24292f",
+      "bg": "#fafbfd",
+      "size": 13
+    },
+    {
+      "name": "复习未答条目",
+      "fg": "#5f6470",
+      "bg": "#fafbfd",
+      "size": 13
+    },
+    {
+      "name": "toast 文字",
+      "fg": "#ffffff",
+      "bg": "#24292f",
+      "size": 13
+    },
+    {
+      "name": "toast 撤销按钮",
+      "fg": "#24292f",
+      "bg": "#f5c518",
+      "size": 13,
+      "bold": true
+    },
+    {
+      "name": "Day13 导航标签 未选中(玻璃底=黑18%叠亮端)",
+      "fg": "#ffffff",
+      "bg": "#4139bc",
+      "size": 13
+    },
+    {
+      "name": "Day13 导航标签 当前页(白底靛蓝字)",
+      "fg": "#4f46e5",
+      "bg": "#ffffff",
+      "size": 13,
+      "bold": true
+    },
+    {
+      "name": "Day13 面包屑链接",
+      "fg": "#4f46e5",
+      "bg": "#f4f6fa",
+      "size": 13
+    },
+    {
+      "name": "Day13 面包屑当前项/分隔符",
+      "fg": "#5f6470",
+      "bg": "#f4f6fa",
+      "size": 13
+    },
+    {
+      "name": "Day13 详情小标签「正面·问题」",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 12
+    },
+    {
+      "name": "Day13 详情正面文字",
+      "fg": "#24292f",
+      "bg": "#ffffff",
+      "size": 18,
+      "bold": true
+    },
+    {
+      "name": "Day13 详情答案文字",
+      "fg": "#4f46e5",
+      "bg": "#f6f5ff",
+      "size": 15,
+      "bold": true
+    },
+    {
+      "name": "Day13 卡片「详情 ›」入口",
+      "fg": "#4f46e5",
+      "bg": "#ffffff",
+      "size": 12
+    },
+    {
+      "name": "Day13 同科目区块标题",
+      "fg": "#24292f",
+      "bg": "#f4f6fa",
+      "size": 15
+    },
+    {
+      "name": "Day13 同科目无卡提示",
+      "fg": "#5f6470",
+      "bg": "#f4f6fa",
+      "size": 13
+    },
+    {
+      "name": "Day13 详情「返回上一页」按钮",
+      "fg": "#ffffff",
+      "bg": "#6f7787",
+      "size": 13
+    },
+    {
+      "name": "Day13 详情找不到 标题",
+      "fg": "#24292f",
+      "bg": "#ffffff",
+      "size": 16,
+      "bold": true
+    },
+    {
+      "name": "Day13 详情找不到 描述",
+      "fg": "#6b7280",
+      "bg": "#ffffff",
+      "size": 13
+    },
+    {
+      "name": "Day13 详情「回到卡片墙」按钮",
+      "fg": "#ffffff",
+      "bg": "#4f46e5",
+      "size": 13
+    },
+    {
+      "name": "Day14 详情入口按钮文字",
+      "fg": "#4f46e5",
+      "bg": "#f6f5ff",
+      "size": 13,
+      "bold": true
+    }
   ]
 }

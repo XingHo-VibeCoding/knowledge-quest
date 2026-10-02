@@ -126,7 +126,7 @@ main { flex: 1; padding-bottom: 30px; }
 .meta { font-size: 11px; color: var(--ink-muted); }
 
 .face p { font-size: 14px; line-height: 1.6; word-break: break-all; }
-.face.front .hint { position: absolute; right: 14px; bottom: 10px; font-size: 11px; color: var(--ink-hint); }
+.face.front .hint { position: absolute; right: 14px; bottom: 62px; font-size: 11px; color: var(--ink-hint); }
 .face.back { display: none; }
 .card.flipped .face.front { display: none; }
 .card.flipped .face.back { display: block; }
@@ -417,20 +417,30 @@ main { flex: 1; padding-bottom: 30px; }
   padding: 12px 14px;
 }
 
-/* 卡片上的「详情 ›」入口：绝对定位在左下，和右下角的"点卡片看答案"提示各占一角 */
+/* 卡片上的「详情 ›」入口（Day 13 建，Day 14 最小修复）
+   Day 14 预演走查实测：375px 下它是 39×20px 的纯文字，远低于 44px 触屏最小点击目标，
+   而它旁边紧挨"点卡片翻面"——手指差几像素就变成翻卡，同伴因此进不去详情页。
+   修复：改成卡片底部一条 44px 高的可见按钮（看得见 + 点得中），翻面提示上移一行。 */
 .card-more {
   position: absolute;
-  left: 14px;
-  bottom: 8px;
-  background: none;
-  border: 0;
-  padding: 2px 4px;
-  font-size: 12px;
+  left: 16px;
+  right: 16px;
+  bottom: 10px;
+  min-height: 44px;                                                  /* 触屏最小点击高度 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f6f5ff;
+  border: 1px solid #d8d4f8;
+  border-radius: 10px;
+  padding: 0 12px;
+  font-size: 13px;
   font-family: inherit;
-  color: var(--brand);                                               /* on #fff 7.0:1 */
+  font-weight: 600;
+  color: var(--brand);                                               /* 复算 on #f6f5ff = 5.82:1 */
   cursor: pointer;
 }
-.card-more:hover { text-decoration: underline; }
+.card-more:hover { background: #ece9ff; border-color: var(--brand); }
 
 /* 同科目卡片区块 */
 .related { margin-top: 22px; }
@@ -443,5 +453,5 @@ main { flex: 1; padding-bottom: 30px; }
 .detail .retry:focus-visible,
 .card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
-/* 卡片下部给「详情 ›」留一行位置，文字不会压到它 */
-.face { padding-bottom: 18px; }
+/* 卡片下部给「详情 ›」那条 44px 操作按钮留位（Day 14：18px → 60px） */
+.face { padding-bottom: 60px; }
