@@ -1,0 +1,16 @@
+{
+  "version": "2.0",
+  "envId": "zgr202511108235qr-d2dkj33964b842",
+  "functionRoot": "./cloudbase/functions",
+  "functions": [
+    {
+      "name": "api",
+      "type": "HTTP",
+      "runtime": "Nodejs16.13",
+      "timeout": 10,
+      "memorySize": 256,
+      "handler": "index.main",
+      "installDependency": false
+    }
+  ]
+}

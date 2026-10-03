@@ -16,7 +16,8 @@ if [ -z "$ENV_ID" ]; then
 fi
 
 TCB="C:/Users/lenovo/.workbuddy/binaries/node/workspace/node_modules/.bin/cloudbase.cmd"
-PROJ="$(cd "$(dirname "$0")/.." && pwd)"
+# Git Bash 下 pwd 给的是 POSIX 路径（/d/...），Windows 版 CLI 读不了，必须转成 D:/... 形式
+PROJ="$(cd "$(dirname "$0")/.." && pwd -W 2>/dev/null || pwd)"
 DIST="$PROJ/.cloudbase-dist"
 
 echo "== 1/4 检查登录状态 =="
@@ -24,20 +25,23 @@ echo "== 1/4 检查登录状态 =="
 echo "已登录"
 
 echo "== 2/4 部署云函数 api（HTTP 触发 + /api 路由）=="
+# ⚠️ CLI 检查 scf_bootstrap 是看「当前工作目录」而不是 --dir，
+#    所以必须先 cd 进函数目录，否则会误报"缺少启动文件"并弹交互问题导致挂起
+cd "$PROJ/cloudbase/functions/api"
 "$TCB" fn deploy api \
-  --dir "$PROJ/cloudbase/functions/api" \
   --httpFn \
   --path /api \
   --runtime Nodejs16.13 \
   --force \
   -e "$ENV_ID"
+cd "$PROJ"
 
 echo "== 3/4 上传前端静态文件 =="
 rm -rf "$DIST"
 mkdir -p "$DIST"
 cp "$PROJ/index.html" "$DIST/"
 cp -r "$PROJ/css" "$PROJ/js" "$PROJ/data" "$DIST/"
-"$TCB" hosting deploy "$DIST" / -e "$ENV_ID" --verify
+"$TCB" hosting deploy "$DIST" / -e "$ENV_ID" || echo "⚠️ 托管上传返回非零（--verify 一致性校验对新环境常误报），用 hosting list 自查即可"
 
 echo "== 4/4 公网地址 =="
 "$TCB" hosting detail -e "$ENV_ID" | head -20

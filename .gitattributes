@@ -1,0 +1,4 @@
+# scf_bootstrap 必须是 LF——CloudBase Web 函数启动脚本遇到 CRLF 会启动失败
+cloudbase/functions/api/scf_bootstrap text eol=lf
+cloudbase/deploy.sh text eol=lf
+*.sh text eol=lf
