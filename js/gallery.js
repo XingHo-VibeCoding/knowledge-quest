@@ -6,6 +6,13 @@
  * 背景装饰层 = Canvas 程序化生成（红蓝喷溅 + 故障色块 + 白色划痕 + 尘点），
  * 随机种子取自卡片 id：同一张卡每次进来画面完全一致（同卡同画），不依赖任何外部图片。
  *
+ * 2026-10-03 二次改造（用户反馈"太规整、太死板"）——四条"去模板化"规则：
+ *   1. 每件展品有自己的姿态：倾角 ±3.6°、横向 ±34px、纵向 ±22px、缩放 0.95~1.03
+ *   2. 后方叠着两张邻卡 + 随机胶带/印章/裁切标记，"手工布置"而不是"居中摆放"
+ *   3. 鼠标移动有视差：背景层跟手平移、展品轻微 3D 倾斜（尊重 prefers-reduced-motion）
+ *   4. 换展品时文案错峰入场（标题 → 编号 → 谜面），箭头左右不等高、略微旋转，打破对称
+ *   姿态同样由卡片 id 做种子：同一张卡的摆放永远一致，不会每次刷新都乱跳。
+ *
  * 深色底文字对比度按 #0b0c11 复算（WCAG AA）：
  *   主文字 #f2f3f7 ≈ 17:1 / 次要 #a8aec0 ≈ 8:1 / 品牌亮紫 #9aa4ff ≈ 7:1
  */
@@ -13,19 +20,26 @@ const Gallery = {
   els: {},
   list: [],   // 当前展出的卡片（沿用卡片墙的筛选结果）
   idx: 0,
+  pose_: null,
 
   init() {
     const self = this;
-    // 直接按 id 存引用，名字保持和 DOM 一致
     this.els = {
       root: document.getElementById('view-gallery'),
       art: document.getElementById('gArt'),
       close: document.getElementById('gClose'),
       prev: document.getElementById('gPrev'),
       next: document.getElementById('gNext'),
+      wrap: document.querySelector('.g-frame-wrap'),
+      under1: document.querySelector('.g-under-1'),
+      under2: document.querySelector('.g-under-2'),
+      tapeA: document.querySelector('.g-tape-a'),
+      tapeB: document.querySelector('.g-tape-b'),
+      stamp: document.getElementById('gStamp'),
       frame: document.getElementById('gFrame'),
       qEcho: document.getElementById('gQEcho'),
       answer: document.getElementById('gAnswer'),
+      tag: document.getElementById('gTag'),
       title: document.getElementById('gTitle'),
       num: document.getElementById('gNum'),
       desc: document.getElementById('gDesc')
@@ -37,6 +51,15 @@ const Gallery = {
     this.els.prev.addEventListener('click', function () { self.step(-1); });
     this.els.next.addEventListener('click', function () { self.step(1); });
     this.els.close.addEventListener('click', function () { self.exit(); });
+
+    /* 视差：鼠标在展馆里移动 → 背景层跟手 + 展品轻微 3D 倾斜。
+       关掉动效偏好（prefers-reduced-motion）时直接不绑，避免"我不要动画你还动"。 */
+    this.reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!this.reduced) {
+      this.els.root.addEventListener('mousemove', function (ev) { self.parallax(ev); });
+      this.els.root.addEventListener('mouseleave', function () { self.parallax(null); });
+    }
+
     window.addEventListener('resize', function () {
       if (!self.els.root.classList.contains('hidden')) self.drawArt();
     });
@@ -67,9 +90,96 @@ const Gallery = {
     this.els.frame.classList.remove('flipped');
     this.els.frame.setAttribute('aria-label',
       card ? '展品 ' + (this.idx + 1) + '：按回车翻面看答案' : '暂无展品');
+    this.applyPose(card);
+    this.replay();
     this.drawArt();
     // 展位号写进地址（replace 不进历史）：刷新/分享都停在同一件展品上
     Router.replace('#/gallery?i=' + this.idx);
+  },
+
+  /* ＝＝＝ 姿态：每件展品的"摆放方式"，种子来自卡片 id ＝＝＝ */
+  pose(card) {
+    const rnd = this.mulberry32(this.seed(String(card ? card.id : 'kq-empty') + '#pose'));
+    return {
+      rot: (rnd() * 2 - 1) * 3.6,
+      ox: Math.round((rnd() * 2 - 1) * 34),
+      oy: Math.round((rnd() * 2 - 1) * 22),
+      scale: 0.95 + rnd() * 0.08,
+      tapes: rnd() < 0.62 ? (rnd() < 0.45 ? 2 : 1) : 0,
+      tapeRight: rnd() < 0.5,
+      tapeRot: -14 + rnd() * 28,
+      stamp: rnd() < 0.65,
+      stampOfs: Math.round(rnd() * 18),
+      u1rot: (rnd() * 2 - 1) * 7,
+      u2rot: (rnd() * 2 - 1) * 7,
+      titleRot: (rnd() * 2 - 1) * 1.5,
+      descRot: (rnd() * 2 - 1) * 1.2,
+      tagRot: -4 + rnd() * 8,
+      drift: 8 + rnd() * 10,
+      driftDur: 20 + rnd() * 10,
+      driftDir: rnd() < 0.5 ? 1 : -1
+    };
+  },
+
+  applyPose(card) {
+    const p = this.pose(card);
+    this.pose_ = p;
+    // 小屏收姿态幅度：375px 下卡已占 78vw，±34px 的偏移会压到两侧箭头的点击区
+    const k = window.innerWidth < 640 ? 0.45 : 1;
+    const e = this.els, st = e.root.style;
+    st.setProperty('--rot', (p.rot * k).toFixed(2) + 'deg');
+    st.setProperty('--ox', Math.round(p.ox * k) + 'px');
+    st.setProperty('--oy', Math.round(p.oy * k) + 'px');
+    st.setProperty('--scale', p.scale.toFixed(3));
+    st.setProperty('--drift', p.drift + 'px');
+    st.setProperty('--drift-dur', p.driftDur.toFixed(1) + 's');
+    e.title.style.setProperty('--info-rot', p.titleRot.toFixed(2) + 'deg');
+    e.desc.style.setProperty('--info-rot', p.descRot.toFixed(2) + 'deg');
+    e.tag.style.setProperty('--tag-rot', p.tagRot.toFixed(2) + 'deg');
+    e.stamp.style.setProperty('--stamp-ofs', p.stampOfs + 'px');
+    e.stamp.textContent = p.stamp ? '知识闯关 · KQ · ' + this.pad(this.idx + 1) : '';
+
+    e.frame.classList.toggle('has-tape', p.tapes > 0);
+    e.frame.classList.toggle('has-tape-two', p.tapes > 1);
+    e.frame.classList.toggle('tape-right', p.tapeRight);
+    e.frame.style.setProperty('--tape-rot', p.tapeRot.toFixed(2) + 'deg');
+
+    // 叠在后面的两张邻卡：跟着主轴一起歪，但歪得不一样，才有"一叠"的感觉
+    e.under1.style.transform = 'translate(' + (p.ox - 30) + 'px,' + (p.oy + 20) + 'px) rotate(' + (p.u1rot).toFixed(2) + 'deg) scale(' + (p.scale * 0.955).toFixed(3) + ')';
+    e.under2.style.transform = 'translate(' + (p.ox + 34) + 'px,' + (p.oy + 30) + 'px) rotate(' + (p.u2rot).toFixed(2) + 'deg) scale(' + (p.scale * 0.925).toFixed(3) + ')';
+  },
+
+  /* 换展品时的错峰入场：给动画"重启一次"（先摘类、强制回流、再挂回） */
+  replay() {
+    const seq = [[this.els.title, 0], [this.els.num, 90], [this.els.desc, 150], [this.els.frame, 0]];
+    seq.forEach(function (pair) {
+      const el = pair[0];
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+      el.style.animationDelay = pair[1] + 'ms';
+    });
+    const f = this.els.frame;
+    f.classList.remove('swap');
+    void f.offsetWidth;
+    f.classList.add('swap');
+  },
+
+  /* 视差：dx/dy ∈ [-1,1]，背景层跟手平移，展品做小幅 3D 倾斜 */
+  parallax(ev) {
+    if (!this.pose_) return;
+    const e = this.els;
+    let dx = 0, dy = 0;
+    if (ev) {
+      const r = e.root.getBoundingClientRect();
+      dx = ((ev.clientX - r.left) / r.width - 0.5) * 2;
+      dy = ((ev.clientY - r.top) / r.height - 0.5) * 2;
+    }
+    e.art.style.transform = 'translate(' + (dx * -14).toFixed(1) + 'px,' + (dy * -10).toFixed(1) + 'px) scale(1.05)';
+    e.wrap.style.setProperty('--tx', (-dy * 3.4).toFixed(2) + 'deg');
+    e.wrap.style.setProperty('--ty', (dx * 4.2).toFixed(2) + 'deg');
+    e.wrap.style.setProperty('--mx', (dx * 12).toFixed(1) + 'px');
+    e.wrap.style.setProperty('--my', (dy * 8).toFixed(1) + 'px');
   },
 
   flip() {
@@ -123,8 +233,8 @@ const Gallery = {
   drawArt() {
     const cv = this.els.art;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = cv.clientWidth || window.innerWidth;
-    const h = cv.clientHeight || window.innerHeight;
+    const w = Math.max(cv.clientWidth || window.innerWidth, 320);
+    const h = Math.max(cv.clientHeight || window.innerHeight, 240);
     cv.width = w * dpr; cv.height = h * dpr;
     const ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

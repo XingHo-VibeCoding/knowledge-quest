@@ -568,7 +568,17 @@ main { flex: 1; padding-bottom: 30px; }
   color: #f2f3f7;
   overflow: hidden;
 }
-.gallery canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* 背景层：外框负责极慢的"呼吸"漂移（时长/幅度由 JS 按卡片给），canvas 自身负责跟手视差 */
+.g-art-wrap {
+  position: absolute;
+  inset: -6%;
+  animation: gDrift var(--drift-dur, 26s) ease-in-out infinite alternate;
+}
+@keyframes gDrift {
+  from { transform: translate3d(calc(var(--drift, 10px) * -1), 0, 0) scale(1.02); }
+  to   { transform: translate3d(var(--drift, 10px), calc(var(--drift, 10px) * -0.6), 0) scale(1.05); }
+}
+.gallery canvas { position: absolute; inset: 0; width: 100%; height: 100%; transition: transform .5s cubic-bezier(.2,.8,.25,1); }
 
 /* 退出按钮：右上角，44px 触屏最小点击目标 */
 .g-close {
@@ -612,11 +622,36 @@ main { flex: 1; padding-bottom: 30px; }
   padding: 64px 16px 170px;
 }
 
-/* 展品（金属边框大卡）：正面是"？"待揭晓，背面是答案 */
-.g-frame {
+/* 展品舞台：外层负责跟手 3D 倾斜（--tx/--ty/--mx/--my 由 JS 写），
+   内层展品负责"摆放姿态"（--rot/--ox/--oy/--scale）——两层分开，互不打架 */
+.g-frame-wrap {
   position: relative;
   width: min(430px, 78vw);
   height: min(540px, 60vh);
+  perspective: 1100px;
+  transform: translate3d(var(--mx, 0px), var(--my, 0px), 0)
+             rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
+  transition: transform .4s cubic-bezier(.2,.8,.25,1);
+}
+
+/* 后方叠着的邻卡：只为纵深，不承载信息 */
+.g-under {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: linear-gradient(160deg, #1c2030, #131624);
+  border: 1px solid rgba(255,255,255,.13);
+  box-shadow: 0 18px 44px rgba(0,0,0,.5);
+  transition: transform .55s cubic-bezier(.2,.85,.25,1);
+}
+.g-under-2 { opacity: .72; }
+
+/* 展品（金属边框大卡）：正面是"？"待揭晓，背面是答案。
+   姿态来自 JS 的种子随机——每件展品歪的角度、偏的位置都不一样，但同一张卡永远一样 */
+.g-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
   border-radius: 8px;
   cursor: pointer;
   background: linear-gradient(155deg, #232637 0%, #151824 55%, #10121b 100%);
@@ -625,16 +660,82 @@ main { flex: 1; padding-bottom: 30px; }
     0 0 0 1px rgba(0,0,0,.8),
     0 26px 70px rgba(0,0,0,.65),
     inset 0 0 0 8px rgba(255,255,255,.045);
-  transition: transform .2s, box-shadow .2s;
+  transform: translate3d(var(--ox, 0px), var(--oy, 0px), 0)
+             rotate(var(--rot, 0deg)) scale(var(--scale, 1));
+  transition: transform .55s cubic-bezier(.2,.85,.25,1), box-shadow .3s;
+  animation: gSwap .5s cubic-bezier(.2,.85,.25,1) both;
 }
-.g-frame:hover {
-  transform: translateY(-3px);
+/* 换展品：从下方斜着"推上来"，不是干巴巴地淡入 */
+@keyframes gSwap {
+  from {
+    opacity: .15;
+    transform: translate3d(var(--ox, 0px), calc(var(--oy, 0px) + 18px), 0)
+               rotate(calc(var(--rot, 0deg) - 5deg)) scale(calc(var(--scale, 1) * .93));
+  }
+}
+/* hover = "把展品拿起来看"：回正一点、放大一点、阴影抬高 */
+.g-frame:hover, .g-frame:focus-visible {
+  transform: translate3d(calc(var(--ox, 0px) * .45), calc(var(--oy, 0px) * .45 - 6px), 0)
+             rotate(calc(var(--rot, 0deg) * .3)) scale(calc(var(--scale, 1) * 1.04));
   box-shadow:
     0 0 0 1px rgba(0,0,0,.8),
-    0 34px 84px rgba(0,0,0,.7),
-    inset 0 0 0 8px rgba(255,255,255,.06);
+    0 38px 90px rgba(0,0,0,.72),
+    inset 0 0 0 8px rgba(255,255,255,.07);
 }
 .g-frame:focus-visible { outline: 3px solid #9aa4ff; outline-offset: 5px; }
+
+/* 手作装饰三件套：胶带 / 印章 / 四角裁切标记（纯装饰，读屏跳过，不承载文字） */
+.g-tape {
+  position: absolute;
+  top: -13px;
+  left: 44px;
+  width: 104px;
+  height: 26px;
+  background: rgba(236,236,226,.8);
+  box-shadow: 0 3px 10px rgba(0,0,0,.35);
+  transform: rotate(var(--tape-rot, -8deg));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+.g-frame.has-tape .g-tape-a { opacity: .92; }
+.g-tape-b {
+  top: auto;
+  bottom: -13px;
+  left: auto;
+  right: 42px;
+  transform: rotate(calc(var(--tape-rot, -8deg) * -1));
+}
+.g-frame.has-tape-two .g-tape-b { opacity: .92; }
+.g-frame.tape-right .g-tape-a { left: auto; right: 46px; }
+
+.g-stamp {
+  position: absolute;
+  right: 20px;
+  bottom: calc(20px + var(--stamp-ofs, 0px));
+  width: 78px;
+  height: 78px;
+  border: 2px solid rgba(154,164,255,.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px;
+  text-align: center;
+  font-size: 9px;
+  line-height: 1.3;
+  letter-spacing: 1px;
+  color: rgba(154,164,255,.85);   /* 等效色 #868ede on 展框 #151824 ≈ 5.6:1，小字也达标 */
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+.g-stamp:empty { display: none; }
+
+.g-crop { position: absolute; width: 15px; height: 15px; border: 0 solid rgba(255,255,255,.34); pointer-events: none; }
+.g-crop-tl { top: -10px; left: -10px; border-top-width: 2px; border-left-width: 2px; }
+.g-crop-tr { top: -10px; right: -10px; border-top-width: 2px; border-right-width: 2px; }
+.g-crop-bl { bottom: -10px; left: -10px; border-bottom-width: 2px; border-left-width: 2px; }
+.g-crop-br { bottom: -10px; right: -10px; border-bottom-width: 2px; border-right-width: 2px; }
 .g-face {
   position: absolute;
   inset: 0;
@@ -674,7 +775,7 @@ main { flex: 1; padding-bottom: 30px; }
   word-break: break-all;
 }
 
-/* 左右箭头：52px 圆钮 */
+/* 左右箭头：一高一低、各自带角度——对称是最容易显得"死板"的东西 */
 .g-arrow {
   z-index: 2;
   flex-shrink: 0;
@@ -687,10 +788,15 @@ main { flex: 1; padding-bottom: 30px; }
   font-size: 26px;
   line-height: 1;
   cursor: pointer;
-  transition: background .16s, transform .16s;
+  transition: background .16s, transform .2s;
 }
-.g-arrow:hover { background: rgba(255,255,255,.16); transform: scale(1.06); }
-.g-arrow:active { transform: scale(.96); }
+.g-prev { transform: translateY(34px) rotate(-7deg); }
+.g-next { transform: translateY(-30px) rotate(6deg); width: 48px; height: 48px; }
+.g-arrow:hover { background: rgba(255,255,255,.16); }
+.g-prev:hover { transform: translateY(34px) rotate(-7deg) scale(1.1); }
+.g-next:hover { transform: translateY(-30px) rotate(6deg) scale(1.1); }
+.g-prev:active { transform: translateY(34px) rotate(-7deg) scale(.95); }
+.g-next:active { transform: translateY(-30px) rotate(6deg) scale(.95); }
 .g-arrow:focus-visible { outline: 3px solid #9aa4ff; outline-offset: 3px; }
 
 /* 展品说明（页脚信息层）：左下主题大字 + 右下谜面，pointer-events:none 不挡展品 */
@@ -707,19 +813,46 @@ main { flex: 1; padding-bottom: 30px; }
   padding: 0 28px 24px;
   pointer-events: none;
 }
-.g-tag { font-size: 12px; letter-spacing: 4px; color: #9aa4ff; margin-bottom: 8px; }
+/* 展签（左下）：标签做成歪着的贴纸，标题底下压一道手绘下划线，编号带刻度感 */
+.g-tag {
+  display: inline-block;
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: #9aa4ff;
+  background: rgba(154,164,255,.10);
+  border: 1px dashed rgba(154,164,255,.5);
+  border-radius: 999px;
+  padding: 4px 14px;
+  margin-bottom: 12px;
+  transform: rotate(var(--tag-rot, 0deg));
+  transform-origin: left center;
+}
 .g-title {
   font-size: clamp(26px, 4.6vw, 44px);
   font-weight: 800;
   letter-spacing: 1px;
   line-height: 1.15;
   max-width: 46vw;
+  padding-bottom: 14px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  transform: rotate(var(--info-rot, 0deg));
+  transform-origin: left bottom;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='12' viewBox='0 0 240 12'%3E%3Cpath d='M2 8 C 40 2, 80 11, 120 6 S 200 3, 238 7' fill='none' stroke='%239aa4ff' stroke-width='3' stroke-linecap='round' opacity='.7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 62% 10px;
+  animation: gInLeft .55s cubic-bezier(.2,.85,.25,1) both;
 }
-.g-num { margin-top: 10px; font-size: 13px; letter-spacing: 2px; color: #a8aec0; }
+.g-num {
+  margin-top: 10px;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #a8aec0;
+  animation: gInLeft .5s cubic-bezier(.2,.85,.25,1) both;
+}
 .g-info-right { max-width: 320px; }
 .g-desc {
   font-size: 13px;
@@ -732,22 +865,40 @@ main { flex: 1; padding-bottom: 30px; }
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   word-break: break-all;
+  transform: rotate(var(--info-rot, 0deg));
+  transform-origin: right top;
+  animation: gInRight .55s cubic-bezier(.2,.85,.25,1) both;
+}
+/* 入场：左边的东西从左边进，右边的从右边进，各自带一点点角度差 */
+@keyframes gInLeft {
+  from { opacity: 0; transform: translate3d(-24px, 12px, 0) rotate(calc(var(--info-rot, 0deg) - 2.5deg)); }
+}
+@keyframes gInRight {
+  from { opacity: 0; transform: translate3d(24px, 12px, 0) rotate(calc(var(--info-rot, 0deg) + 2deg)); }
 }
 .g-keys { margin-top: 8px; font-size: 11px; letter-spacing: 1px; color: #a8aec0; text-align: right; }
 
-/* 动效克制：prefers-reduced-motion 一律取消 */
+/* 动效克制：prefers-reduced-motion 时回到"静态摆放"，但姿态（倾角/偏移）保留——
+   那是版式不是动画，用户不要动效也不该看到一张刻板的居中卡 */
 @media (prefers-reduced-motion: reduce) {
-  .g-frame, .g-arrow, .g-close { transition: none; }
+  .g-art-wrap { animation: none; }
+  .g-frame, .g-title, .g-num, .g-desc { animation: none !important; }
+  .g-frame, .g-arrow, .g-close, .g-frame-wrap, .g-under, .g-art-wrap canvas { transition: none; }
 }
 
-/* 小屏：箭头浮到展品两侧，说明改为竖排 */
+/* 小屏：箭头浮到展品两侧（同样一高一低），说明改竖排；姿态幅度收一点，别把卡挤出去 */
 @media (max-width: 640px) {
   .g-stage { padding: 60px 8px 230px; }
-  .g-arrow { position: absolute; top: 42%; }
-  .g-prev { left: 10px; }
-  .g-next { right: 10px; }
+  .g-arrow { position: absolute; z-index: 3; }   /* 卡片姿态偏移后也不许压住箭头的点击区 */
+  .g-prev { left: 12px; top: 38%; transform: rotate(-7deg); }
+  .g-next { right: 12px; top: 30%; transform: rotate(6deg); }
+  .g-prev:hover { transform: rotate(-7deg) scale(1.1); }
+  .g-next:hover { transform: rotate(6deg) scale(1.1); }
+  .g-frame-wrap { --mx: 0px; --my: 0px; }
   .g-info { flex-direction: column; align-items: flex-start; gap: 14px; padding: 0 18px 18px; }
+  .g-tag { margin-left: 2px; }
   .g-title { max-width: 100%; }
   .g-info-right { max-width: 100%; }
   .g-keys { text-align: left; }
+  .g-stamp { width: 64px; height: 64px; font-size: 8px; }
 }

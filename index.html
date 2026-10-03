@@ -168,27 +168,42 @@
     </div>
     <!-- ＝＝＝ 视图四：展览模式（#/gallery，2026-10-03） ＝＝＝
          暗色展馆风：一次只展一件卡，←/→ 换展品、回车/点击翻面、ESC 退场。
-         背景装饰由 js/gallery.js 用 Canvas 按卡片 id 做种子程序化生成，无外部图片。 -->
+         背景装饰由 js/gallery.js 用 Canvas 按卡片 id 做种子程序化生成，无外部图片。
+         2026-10-03 二次改造：打破"正中+对称"的规整感——每张展品有自己的姿态
+         （随机倾角/偏移/缩放 + 胶带/印章/裁切标记），后方叠着邻卡，鼠标移动有视差。 -->
     <div id="view-gallery" class="gallery hidden" role="region" aria-label="展览模式">
-      <canvas id="gArt" aria-hidden="true"></canvas>
+      <div class="g-art-wrap" aria-hidden="true"><canvas id="gArt"></canvas></div>
       <button id="gClose" class="g-close" type="button">✕ 退出展览 <span class="g-close-key">ESC</span></button>
       <div class="g-stage">
         <button id="gPrev" class="g-arrow g-prev" type="button" aria-label="上一件展品">‹</button>
-        <figure id="gFrame" class="g-frame" tabindex="0" role="button" aria-label="展品：按回车翻面看答案">
-          <div class="g-face g-face-front">
-            <p class="g-mystery" aria-hidden="true">？</p>
-            <p class="g-face-hint">谜面在右下角说明里<br>点击或按回车翻面揭晓</p>
-          </div>
-          <div class="g-face g-face-back">
-            <p id="gQEcho" class="g-q-echo"></p>
-            <p id="gAnswer" class="g-answer"></p>
-          </div>
-        </figure>
+        <div class="g-frame-wrap">
+          <!-- 后方叠放的两张邻卡：只做纵深，不承载信息 -->
+          <span class="g-under g-under-1" aria-hidden="true"></span>
+          <span class="g-under g-under-2" aria-hidden="true"></span>
+          <figure id="gFrame" class="g-frame" tabindex="0" role="button" aria-label="展品：按回车翻面看答案">
+            <!-- 手作装饰：胶带 / 印章 / 四角裁切标记（都是装饰，读屏跳过） -->
+            <span class="g-tape g-tape-a" aria-hidden="true"></span>
+            <span class="g-tape g-tape-b" aria-hidden="true"></span>
+            <span id="gStamp" class="g-stamp" aria-hidden="true"></span>
+            <span class="g-crop g-crop-tl" aria-hidden="true"></span>
+            <span class="g-crop g-crop-tr" aria-hidden="true"></span>
+            <span class="g-crop g-crop-bl" aria-hidden="true"></span>
+            <span class="g-crop g-crop-br" aria-hidden="true"></span>
+            <div class="g-face g-face-front">
+              <p class="g-mystery" aria-hidden="true">？</p>
+              <p class="g-face-hint">谜面在右下角说明里<br>点击或按回车翻面揭晓</p>
+            </div>
+            <div class="g-face g-face-back">
+              <p id="gQEcho" class="g-q-echo"></p>
+              <p id="gAnswer" class="g-answer"></p>
+            </div>
+          </figure>
+        </div>
         <button id="gNext" class="g-arrow g-next" type="button" aria-label="下一件展品">›</button>
       </div>
       <div class="g-info">
         <div class="g-info-left">
-          <p class="g-tag">EXHIBIT · 知识展</p>
+          <p id="gTag" class="g-tag">EXHIBIT · 知识展</p>
           <h2 id="gTitle" class="g-title">—</h2>
           <p id="gNum" class="g-num">No. 000 / 000</p>
         </div>
