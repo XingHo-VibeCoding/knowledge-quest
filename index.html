@@ -43,8 +43,20 @@
       <!-- 筛选结果播报：视觉上是统计行，读屏靠 role=status 听到 -->
       <p id="filterResult" class="filter-result hidden" role="status" aria-live="polite"></p>
 
-      <!-- F2：科目筛选（Day 8 主视图已实现） -->
-      <div id="filters" class="filters"></div>
+      <!-- F2：科目筛选（Day 8 建）＋ 两级分类（2026-10-03）：选科目后第二行出现子分类 -->
+      <div id="filters" class="filters" aria-label="科目筛选"></div>
+      <div id="subFilters" class="filters subfilters hidden" aria-label="子分类筛选"></div>
+
+      <!-- 两级分类管理面板：加大类 / 加删子类（配置存本机浏览器） -->
+      <div id="catPanel" class="addpanel catpanel hidden">
+        <h3 class="addpanel-title">管理分类</h3>
+        <p class="catpanel-desc">大类来自卡片（含自定义科目）；子分类可以随意增删，删除只影响筛选，不动卡片。</p>
+        <div id="catList" class="catlist"></div>
+        <div class="form-actions">
+          <span id="catMsg" class="form-msg"></span>
+          <button id="catCloseBtn" class="retry miss" type="button">完成</button>
+        </div>
+      </div>
 
       <!-- 添加卡片面板（Day 9：你的知识你存，localStorage 本机保存） -->
       <div id="addPanel" class="addpanel hidden">
@@ -59,6 +71,13 @@
             <option value="__custom">自定义…</option>
           </select>
           <input id="fSubjectCustom" class="hidden" type="text" aria-label="自定义科目名" placeholder="科目名，如：光学" maxlength="8">
+        </div>
+        <div class="form-row">
+          <label for="fSub">子分类</label>
+          <select id="fSub">
+            <option value="">不分子类</option>
+          </select>
+          <input id="fSubCustom" class="hidden" type="text" aria-label="自定义子分类名" placeholder="子分类名，如：光学" maxlength="8">
         </div>
         <div class="form-row">
           <label for="fFront">正面（问题/提示）</label>

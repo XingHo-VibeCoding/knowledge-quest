@@ -3,8 +3,9 @@
  * 约定：mock 数据（quest-cards.json）永远只读，用户卡片单独存，互不污染。
  */
 const KQStore = {
-  CARDS_KEY: 'kq_user_cards',   // 用户自存卡片
-  BEST_KEY: 'kq_best_score',    // 闯关最佳战绩
+  CARDS_KEY: 'kq_user_cards',       // 用户自存卡片
+  BEST_KEY: 'kq_best_score',        // 闯关最佳战绩
+  CATEGORIES_KEY: 'kq_categories',  // 两级分类配置（2026-10-03）：{ '科目': ['子类', …], … }
 
   _read(key, fallback) {
     try {
@@ -44,6 +45,12 @@ const KQStore = {
 
   /** 战绩：读最佳（{score, total, date}） */
   getBest() { return this._read(this.BEST_KEY, null); },
+
+  /** 分类配置：读全部（对象不存在时返回 null，由调用方决定默认值） */
+  getCategories() { return this._read(this.CATEGORIES_KEY, null); },
+
+  /** 分类配置：整体保存（返回是否成功） */
+  saveCategories(cats) { return this._write(this.CATEGORIES_KEY, cats); },
 
   /** 战绩：本轮成绩更好就刷新 */
   saveBest(score, total) {

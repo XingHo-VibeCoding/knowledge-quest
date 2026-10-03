@@ -13,11 +13,17 @@
   --ink-muted: #6b7280;     /* 白卡上的次要文字，on #fff ≈ 4.8:1 */
   --ink-hint: #6f7787;      /* 最浅可用提示文字，on #fff ≈ 4.6:1 */
   --brand: #4f46e5;         /* 品牌靛蓝，on #fff ≈ 7.0:1 */
+  --brand-bright: #6157ff;  /* 品牌亮端（仅用于白字≥13px 的渐变按钮/装饰），白字 4.87:1 */
+  --surface: #f5f6fb;       /* 页面底色 */
+  --line: #e8eaf2;          /* 描边 */
+  --radius: 16px;           /* 统一大圆角 */
+  --shadow-card: 0 1px 2px rgba(23,26,63,.05), 0 10px 28px -14px rgba(23,26,63,.14);
+  --shadow-lift: 0 14px 30px -10px rgba(79,70,229,.28);
 }
 
 body {
-  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-  background: #f4f6fa;
+  font-family: "MiSans", "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: var(--surface);
   color: #24292f;
   min-height: 100vh;
   display: flex;
@@ -26,15 +32,21 @@ body {
 
 .container { max-width: 960px; margin: 0 auto; padding: 0 16px; width: 100%; }
 
-/* 标题区（Day 12 Skill 复算：原亮端 #7c6cf0 上 14px 白字仅 3.99:1 → 渐变收深，
-   两端都在 7:1 以上；深色区所有白字因此达标） */
+/* 标题区（视觉翻新 v2）：深靛蓝渐变打底 + 两团品牌色光斑做氛围（光斑不承载文字，
+   最亮等效色 #5E5BEB 上白字 4.99:1 已复算达标）；底部大圆角让头部像"盖"在页面上 */
 .top {
-  background: linear-gradient(135deg, #4338ca, #4f46e5);
+  position: relative;
+  background: #3730a3;
+  background-image:
+    radial-gradient(560px 280px at 88% -30%, rgba(129,140,248,.32), transparent 62%),
+    radial-gradient(480px 240px at 4% 130%, rgba(99,102,241,.30), transparent 58%),
+    linear-gradient(135deg, #312e81, #4338ca 55%, #4f46e5);
   color: #fff;
-  padding: 26px 0 18px;
+  padding: 30px 0 22px;
+  border-radius: 0 0 24px 24px;
 }
-.top h1 { font-size: 28px; letter-spacing: 2px; }
-.top .sub { margin-top: 6px; font-size: 14px; opacity: .92; }
+.top h1 { font-size: 30px; font-weight: 800; letter-spacing: 1px; }
+.top .sub { margin-top: 6px; font-size: 14px; color: rgba(255,255,255,.88); }
 
 .toolbar {
   margin-top: 14px;
@@ -44,80 +56,95 @@ body {
   gap: 12px;
   flex-wrap: wrap;
 }
-.filters { display: flex; gap: 8px; flex-wrap: wrap; }
-/* 深色头部的「玻璃」按钮：Day 12 Skill 复算发现原来是「提亮叠加」
-   （rgba(255,255,255,.16) 叠在渐变上 → 白字仅 3.12:1，hover 2.51:1），
-   改成压暗叠加：rgba(0,0,0,.18) 等效 #4139bc、hover .28 等效 #3932a5，白字 8.3/9.6:1。 */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* 深色头部的「玻璃」按钮：压暗叠加保证白字对比（Day 12 复算记录）；
+   翻新 v2：白边收轻（.65→.38）+ 毛玻璃，去掉"粗描边"的旧感 */
 .chip {
   background: rgba(0,0,0,.18);
   color: #fff;
-  border: 1px solid rgba(255,255,255,.65);
-  border-radius: 999px;
-  padding: 5px 16px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background .15s;
-}
-.chip:hover { background: rgba(0,0,0,.28); }
-.chip.active { background: #fff; color: #4f46e5; border-color: #fff; font-weight: 700; }
-.shuffle {
-  background: rgba(0,0,0,.18);
-  color: #fff;
-  border: 1px solid rgba(255,255,255,.65);
+  border: 1px solid rgba(255,255,255,.38);
   border-radius: 999px;
   padding: 6px 18px;
   font-size: 13px;
   cursor: pointer;
-  transition: background .15s;
+  transition: background .16s, transform .16s, box-shadow .16s;
+  backdrop-filter: blur(6px);
 }
-.shuffle:hover { background: rgba(0,0,0,.28); }
+.chip:hover { background: rgba(0,0,0,.30); }
+.chip.active { background: #fff; color: #4f46e5; border-color: #fff; font-weight: 700; box-shadow: 0 4px 14px rgba(0,0,0,.22); }
+/* 「＋ 添加卡片」主按钮：白底实心 + 投影 + hover 上浮（翻新 v2：从"第二个玻璃按钮"升级成页面主 CTA） */
+.shuffle {
+  background: #fff;
+  color: #3730a3;                /* 复算 on #fff = 9.1:1 */
+  border: none;
+  border-radius: 999px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,.22);
+  transition: transform .16s, box-shadow .16s;
+}
+.shuffle:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,.28); }
 .shuffle:active { transform: scale(.97); }
 
 /* 统计行（Day 9 审查：对比度 3.0->6.9，左右 margin 归零与网格对齐） */
 .stats { margin: 14px 0 12px; font-size: 13px; color: var(--ink-secondary); }
 
-/* 筛选 chips 专用浅色主题（Day 9 审查：原白字样式是给深色头部的，
-   落在浅色主区域上白字几乎不可见；active 态改靛蓝底让选中态醒目） */
+/* 筛选 chips 浅色主题（翻新 v2：active 用品牌实底+品牌色投影，选中态更"弹"） */
 .filters .chip {
   background: #fff;
   color: var(--ink-body);
-  border: 1px solid #d6dae1;
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px rgba(23,26,63,.04);
 }
-.filters .chip:hover { background: #f1f2fb; }
+.filters .chip:hover { border-color: #b9baf5; background: #f4f3ff; }
 .filters .chip.active {
   background: #4f46e5;
   color: #fff;
   border-color: #4f46e5;
+  font-weight: 600;
+  box-shadow: 0 6px 16px -4px rgba(79,70,229,.45);
 }
 
-/* 卡片墙（F1） */
+/* 卡片墙（F1）—— 翻新 v2：大圆角、双层柔影、hover 上浮带品牌色光晕、入场淡入 */
 main { flex: 1; padding-bottom: 30px; }
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 .card {
   background: #fff;
-  border: 1px solid #e7e9f0;
-  border-radius: 12px;
-  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
   min-height: 128px;
   cursor: pointer;
   position: relative;
-  box-shadow: 0 1px 3px rgba(20,30,60,.06);
-  transition: transform .15s, box-shadow .15s;
+  box-shadow: var(--shadow-card);
+  transition: transform .18s, box-shadow .18s, border-color .18s;
   display: flex;
   flex-direction: column;
+  animation: cardIn .32s ease both;
 }
-.card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(40,50,90,.12); }
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+  .card, .chip, .shuffle, .retry, .clearbtn { transition: none; }
+}
+.card:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(23,26,63,.06), var(--shadow-lift); border-color: #d9d6fb; }
 
 .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .badge {
   font-size: 12px;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-weight: 700;
+  border: 1px solid rgba(36,41,47,.06);
 }
 .badge-口语 { background: #e8f0fd; color: #2b6cb0; }
 .badge-教务 { background: #f3e8fd; color: #7c3aed; }
@@ -188,12 +215,14 @@ main { flex: 1; padding-bottom: 30px; }
   color: #fff;
   border: none;
   border-radius: 999px;
-  padding: 6px 20px;
+  padding: 7px 20px;
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
+  transition: transform .16s, box-shadow .16s, background .16s;
 }
 .retry:hover { background: #a82622; }
+.retry:active { transform: scale(.97); }
 
 /* Day 12 修复：.toast 的 display:flex 写在本规则之后，同优先级下"后者胜"，
    导致 .hidden 对 toast 失效（Day 11 起 toast 一直以空黑条挂在页面上）。
@@ -224,10 +253,10 @@ main { flex: 1; padding-bottom: 30px; }
 .form-msg { font-size: 12px; color: var(--ink-muted); }
 .form-msg.ok { color: #0b7a43; }   /* Day9 复审：0f9d58 on 白 仅 3.51:1 */
 .form-msg.warn { color: #b45309; } /* Day12 Skill：原 #d97706 on #fff 仅 3.19:1 → 5.02:1 */
-.retry.save { background: #4f46e5; }
-.retry.save:hover { background: #3c37b8; }
-.retry.miss { background: #6f7787; }
-.retry.miss:hover { background: #575e6c; }
+.retry.save { background: linear-gradient(135deg, #4f46e5, var(--brand-bright)); box-shadow: 0 4px 14px -2px rgba(79,70,229,.4); }
+.retry.save:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -4px rgba(79,70,229,.5); filter: brightness(1.05); }
+.retry.miss { background: #64748b; }   /* 白字 4.75:1（翻新 v2：从灰蓝换成石板灰，hover 更深） */
+.retry.miss:hover { background: #475569; }
 .local-tag {
   background: #e6f7ee; color: #0b7a43; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-right: 4px;
 }
@@ -455,3 +484,74 @@ main { flex: 1; padding-bottom: 30px; }
 
 /* 卡片下部给「详情 ›」那条 44px 操作按钮留位（Day 14：18px → 60px） */
 .face { padding-bottom: 60px; }
+
+/* ＝＝＝ 视觉翻新 v2（2026-10-03）：统一细节 + 两级分类新组件 ＝＝＝ */
+
+/* 大圆角统一：面板/搜索/空态/骨架/详情/toast */
+.addpanel, .empty, .detail, .skeleton-card { border-radius: var(--radius); }
+.search { border-radius: 12px; padding: 10px 14px; transition: border-color .16s, box-shadow .16s; }
+.search:focus { border-color: var(--brand); box-shadow: 0 0 0 4px rgba(79,70,229,.14); outline: none; }
+.toast { border-radius: 12px; }
+.form-row select, .form-row input[type="text"], .form-row textarea {
+  border-radius: 10px; border-color: var(--line); background: #fafbfe; transition: border-color .16s, box-shadow .16s;
+}
+.form-row textarea:focus, .form-row select:focus, .form-row input:focus {
+  border-color: var(--brand); box-shadow: 0 0 0 3px rgba(79,70,229,.13); outline: none;
+}
+.clearbtn { transition: background .16s, border-color .16s, transform .16s; }
+.clearbtn:hover { border-color: #b9baf5; }
+.footer { background: transparent; border-top: 1px solid var(--line); }
+.detail { border: 1px solid var(--line); box-shadow: var(--shadow-card); }
+
+/* ＝＝＝ 两级分类：子分类行 ＝＝＝ */
+.subfilters { margin: 8px 0 4px 0; }
+.chip-sub { padding: 6px 14px; font-size: 12px; }   /* 6px 纵向 padding：按钮高 ≥31px，别做成眯眼小标签 */
+.chip-sub.active { box-shadow: 0 4px 12px -4px rgba(79,70,229,.45); }
+/* 「＋ 子分类」「⚙ 管理分类」是动作不是筛选项：虚线边 + 淡品牌字，跟选择 chips 区分开 */
+.chip-add, .chip-manage {
+  background: transparent;
+  color: var(--brand);
+  border: 1px dashed #b3b0f0;
+  box-shadow: none;
+}
+.chip-add:hover, .chip-manage:hover { background: #f4f3ff; border-style: solid; border-color: var(--brand); }
+
+/* ＝＝＝ 管理分类面板 ＝＝＝ */
+.catpanel { border: 1px solid #d8d4f8; }
+.catpanel-desc { font-size: 12px; color: var(--ink-secondary); margin: -6px 0 12px; }
+.catlist { display: flex; flex-direction: column; gap: 8px; }
+.cat-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; background: #fafbfe; border: 1px solid var(--line); border-radius: 12px;
+}
+.cat-name { font-size: 13px; font-weight: 700; color: var(--ink-strong); min-width: 56px; }
+.cat-tags { display: flex; gap: 6px; flex-wrap: wrap; flex: 1 1 200px; }
+.cat-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #eef0f8; color: var(--ink-body);
+  font-size: 12px; padding: 3px 6px 3px 10px; border-radius: 999px;
+}
+.cat-empty { font-size: 12px; color: var(--ink-hint); padding: 3px 0; }
+.cat-del-btn {
+  border: none; background: transparent; color: var(--ink-secondary);
+  width: 18px; height: 18px; border-radius: 50%; font-size: 11px; line-height: 1;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  transition: background .14s, color .14s;
+}
+.cat-del-btn:hover { background: #fdeaea; color: #c9302c; }
+.cat-add-input {
+  flex: 1 1 130px; min-width: 0; font-size: 12px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff;
+}
+.cat-add-btn {
+  border: none; background: var(--brand); color: #fff;
+  font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 8px; cursor: pointer;
+  transition: filter .14s, transform .14s;
+}
+.cat-add-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+/* 新组件焦点环（Skill 可访问性检查项） */
+.chip-sub:focus-visible, .chip-add:focus-visible, .chip-manage:focus-visible,
+.cat-del-btn:focus-visible, .cat-add-btn:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: 2px;
+}

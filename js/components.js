@@ -24,7 +24,7 @@ const KnowledgeCard = {
     el.innerHTML =
       '<div class="card-top">' +
         '<span class="badge badge-' + card.subject + '">' + card.subject + '</span>' +
-        '<span class="meta">' + (card.local ? '<span class="local-tag">自存</span>' : '') + card.type + ' · Lv.' + card.level + '</span>' +
+        '<span class="meta">' + (card.local ? '<span class="local-tag">自存</span>' : '') + (card.sub ? card.sub + ' · ' : '') + card.type + ' · Lv.' + card.level + '</span>' +
       '</div>' +
       '<div class="face front"><p></p><span class="hint">点卡片看答案</span></div>' +
       '<div class="face back"><p></p></div>';

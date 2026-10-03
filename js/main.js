@@ -3,9 +3,21 @@
  */
 let cards = [];            // 全部卡片 = mock（quest-cards.json，只读） + 用户自存（localStorage）
 let currentSubject = '全部'; // F2 当前筛选科目
+let currentSub = '';         // 两级分类：当前子分类（'' = 不分子类）
 let currentKeyword = '';     // Day 12 当前搜索关键词（命中正面或背面）
 let currentRoute = 'wall';   // Day 13 当前视图名：wall / quiz / card
 let demoState = '';          // Day 13 状态演示：loading / empty / error（只有地址栏给了 demo 参数才有值）
+
+/* 两级分类（2026-10-03）：categories = { '科目': ['子类', …], … }
+   默认值只给 mock 自带四类，用户改过的配置存 localStorage（KQStore.CATEGORIES_KEY）。
+   自定义科目默认不分子类，加子类后在配置里生长。 */
+const DEFAULT_SUBS = {
+  '口语': ['日常表达', '职场表达'],
+  '教务': ['接待与运营', '排课', '数据与活动'],
+  '专业课': ['编程', '光电'],
+  '销售': ['咨询与讲解', '邀约与谈判', '转介绍与内容']
+};
+let categories = {}; // load() 时按 mock subjects + 自存卡科目初始化
 
 const els = {
   grid: document.getElementById('grid'),
@@ -20,6 +32,14 @@ const els = {
   clearBtn: document.getElementById('clearBtn'),
   filterResult: document.getElementById('filterResult'),
   noResult: document.getElementById('noResult'),
+  // 两级分类
+  subFilters: document.getElementById('subFilters'),
+  catPanel: document.getElementById('catPanel'),
+  catList: document.getElementById('catList'),
+  catMsg: document.getElementById('catMsg'),
+  catCloseBtn: document.getElementById('catCloseBtn'),
+  fSub: document.getElementById('fSub'),
+  fSubCustom: document.getElementById('fSubCustom'),
   // 三视图（Day 13：卡片墙 / 闯关 / 卡片详情）
   viewWall: document.getElementById('view-wall'),
   viewQuiz: document.getElementById('view-quiz'),
@@ -135,11 +155,16 @@ function deleteCard(card, btn) {
   }, 300);
 }
 
-/* Day 12：筛选 = 科目 AND 关键词（关键词命中正面或背面即可，忽略大小写） */
+/* Day 12：筛选 = （科目 + 子分类） AND 关键词（关键词命中正面或背面即可，忽略大小写）
+   子分类规则：'' = 不分子类全部通过；'未分类' 只匹配没有 sub 的卡；其余按卡上的 sub 精确匹配 */
 function visibleCards() {
   const kw = currentKeyword.trim().toLowerCase();
   return cards.filter(function (c) {
     if (currentSubject !== '全部' && c.subject !== currentSubject) return false;
+    if (currentSubject !== '全部' && currentSub) {
+      if (currentSub === '未分类' && c.sub) return false;
+      if (currentSub !== '未分类' && c.sub !== currentSub) return false;
+    }
     if (!kw) return true;
     return (String(c.front) + ' ' + String(c.back)).toLowerCase().indexOf(kw) >= 0;
   });
@@ -170,7 +195,11 @@ function renderFilterStatus(count) {
   if (filtering) {
     const parts = [];
     if (currentKeyword.trim()) parts.push('关键词「' + currentKeyword.trim() + '」');
-    if (currentSubject !== '全部') parts.push('科目「' + currentSubject + '」');
+    if (currentSubject !== '全部') {
+      let label = '科目「' + currentSubject + '」';
+      if (currentSub) label += ' → 子分类「' + currentSub + '」';
+      parts.push(label);
+    }
     els.filterResult.textContent = '筛选条件：' + parts.join(' + ') +
       ' → 找到 ' + count + ' 张，共 ' + cards.length + ' 张';
   }
@@ -187,13 +216,28 @@ function currentSubjects() {
   return Object.keys(set);
 }
 
-function updateStats() {
-  const localCount = cards.filter(function (c) { return c.local; }).length;
-  els.stats.textContent = '共 ' + cards.length + ' 张卡片（其中你自己存的 ' + localCount +
-    ' 张，保存在本机浏览器）· 科目：' + currentSubjects().join(' / ');
+/* ＝＝＝ 两级分类（2026-10-03）＝＝＝
+   初始化：mock 科目用默认子类（用户配置过就用用户的），自定义科目给空数组。
+   配置只在用户显式增删时写回 localStorage——刷新页面永远不会丢用户的分类。 */
+function initCategories() {
+  const stored = KQStore.getCategories();
+  categories = {};
+  currentSubjects().forEach(function (s) {
+    if (stored && Object.prototype.hasOwnProperty.call(stored, s)) categories[s] = stored[s].slice();
+    else categories[s] = (DEFAULT_SUBS[s] || []).slice();
+  });
+}
+function subsOf(subject) { return categories[subject] || []; }
+
+/* 当前科目下真实存在的子类集合 = 配置里的 + 卡片实际带着的（自定义卡自填的子类也能筛） */
+function effectiveSubs(subject) {
+  const set = {};
+  subsOf(subject).forEach(function (s) { set[s] = true; });
+  cards.forEach(function (c) { if (c.subject === subject && c.sub) set[c.sub] = true; });
+  return Object.keys(set);
 }
 
-/* F2：科目筛选 chips */
+/* F2：科目筛选 chips（行尾挂「管理分类」入口） */
 function renderFilters(subjects) {
   const all = ['全部'].concat(subjects);
   els.filters.innerHTML = '';
@@ -204,19 +248,175 @@ function renderFilters(subjects) {
     btn.textContent = subject;
     btn.addEventListener('click', function () {
       currentSubject = subject;
+      currentSub = ''; // 换科目时子分类归零，避免"口语 → 编程"这种跨科目的死条件
       els.filters.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('active'); });
       btn.classList.add('active');
       syncHash();
+      renderSubFilters();
       render(); // 筛选只动渲染，不动数据
     });
     els.filters.appendChild(btn);
   });
+  const mgmt = document.createElement('button');
+  mgmt.type = 'button';
+  mgmt.className = 'chip chip-manage';
+  mgmt.textContent = '⚙ 管理分类';
+  mgmt.addEventListener('click', function () { toggleCatPanel(true); });
+  els.filters.appendChild(mgmt);
+  renderSubFilters();
 }
 
-/* ＝＝＝ Day 12：清除筛选（第三种情况：清空后恢复完整列表） ＝＝＝ */
+/* 子分类行：只在选中具体科目时出现；'全部' + 配置子类 + '未分类'（有无子类卡时） + 添加入口 */
+function renderSubFilters() {
+  const show = currentSubject !== '全部';
+  els.subFilters.classList.toggle('hidden', !show);
+  if (!show) return;
+  els.subFilters.innerHTML = '';
+  const subs = effectiveSubs(currentSubject);
+  const hasUncategorized = cards.some(function (c) {
+    return c.subject === currentSubject && !c.sub;
+  });
+  ['全部'].concat(subs, hasUncategorized ? ['未分类'] : []).forEach(function (sub) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip chip-sub' + (sub === currentSub ? ' active' : '');
+    const n = cards.filter(function (c) {
+      if (c.subject !== currentSubject) return false;
+      return sub === '未分类' ? !c.sub : (sub === '全部' || c.sub === sub);
+    }).length;
+    btn.textContent = sub + ' ' + n;
+    btn.addEventListener('click', function () {
+      currentSub = (sub === '全部') ? '' : sub;
+      els.subFilters.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('active'); });
+      btn.classList.add('active');
+      syncHash();
+      render();
+    });
+    els.subFilters.appendChild(btn);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'chip chip-add';
+  addBtn.textContent = '＋ 子分类';
+  addBtn.addEventListener('click', function () { addSubPrompt(currentSubject); });
+  els.subFilters.appendChild(addBtn);
+}
+
+/* 添加子分类：用行内小面板（不用 prompt，历史上它会被部分浏览器禁掉） */
+function addSubPrompt(subject) {
+  toggleCatPanel(true, subject);
+}
+
+/* ＝＝＝ 管理分类面板：列出大类 → 子类标签（可删空的）＋ 行内添加 ＝＝＝ */
+let catAddTarget = ''; // 点「＋ 子分类」进来时，直接聚焦对应大类的输入框
+function toggleCatPanel(force, focusSubject) {
+  const show = force !== undefined ? force : els.catPanel.classList.contains('hidden');
+  els.catPanel.classList.toggle('hidden', !show);
+  catAddTarget = focusSubject || '';
+  els.catMsg.textContent = '';
+  if (show) renderCatList();
+}
+function renderCatList() {
+  els.catList.innerHTML = '';
+  currentSubjects().forEach(function (subject) {
+    const row = document.createElement('div');
+    row.className = 'cat-row';
+    const name = document.createElement('span');
+    name.className = 'cat-name';
+    name.textContent = subject;
+    row.appendChild(name);
+
+    const tags = document.createElement('span');
+    tags.className = 'cat-tags';
+    const subs = effectiveSubs(subject);
+    if (subs.length === 0) {
+      const empty = document.createElement('span');
+      empty.className = 'cat-empty';
+      empty.textContent = '暂无子分类';
+      tags.appendChild(empty);
+    }
+    subs.forEach(function (sub) {
+      const tag = document.createElement('span');
+      tag.className = 'cat-tag';
+      tag.textContent = sub;
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'cat-del-btn';
+      del.setAttribute('aria-label', '删除子分类 ' + subject + ' / ' + sub);
+      del.textContent = '✕';
+      del.addEventListener('click', function () { removeSub(subject, sub, del); });
+      tag.appendChild(del);
+      tags.appendChild(tag);
+    });
+    row.appendChild(tags);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'cat-add-input';
+    input.setAttribute('aria-label', '给 ' + subject + ' 添加子分类');
+    input.placeholder = '新子分类名';
+    input.maxLength = 8;
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'cat-add-btn';
+    add.textContent = '添加';
+    function doAdd() {
+      if (addSub(subject, input.value.trim())) { renderCatList(); renderSubFilters(); }
+    }
+    add.addEventListener('click', doAdd);
+    input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); doAdd(); } });
+    row.appendChild(input);
+    row.appendChild(add);
+    if (subject === catAddTarget) setTimeout(function () { input.focus(); }, 0);
+    els.catList.appendChild(row);
+  });
+}
+function catFail(msg) { els.catMsg.textContent = msg; els.catMsg.className = 'form-msg warn'; }
+function catOk(msg) { els.catMsg.textContent = msg; els.catMsg.className = 'form-msg ok'; }
+
+function addSub(subject, name) {
+  if (!name) { catFail('子分类名不能为空'); return false; }
+  if (effectiveSubs(subject).indexOf(name) >= 0) { catFail('「' + name + '」已经存在'); return false; }
+  if (!categories[subject]) categories[subject] = [];
+  categories[subject].push(name);
+  if (!KQStore.saveCategories(categories)) {
+    categories[subject].pop();
+    catFail('保存失败：本机存储不可用');
+    return false;
+  }
+  catOk('已在「' + subject + '」下添加子分类「' + name + '」');
+  return true;
+}
+function removeSub(subject, sub, btn) {
+  const used = cards.filter(function (c) { return c.subject === subject && c.sub === sub; }).length;
+  if (used > 0) {
+    catFail('「' + sub + '」下面还有 ' + used + ' 张卡片，先删卡或改卡的子分类，再删它');
+    return;
+  }
+  categories[subject] = categories[subject].filter(function (s) { return s !== sub; });
+  if (!KQStore.saveCategories(categories)) {
+    categories[subject].push(sub);
+    catFail('保存失败：本机存储不可用');
+    return;
+  }
+  if (currentSub === sub) currentSub = '';
+  catOk('已删除子分类「' + sub + '」');
+  renderCatList();
+  renderSubFilters();
+  render();
+}
+
+function updateStats() {
+  const localCount = cards.filter(function (c) { return c.local; }).length;
+  els.stats.textContent = '共 ' + cards.length + ' 张卡片（其中你自己存的 ' + localCount +
+    ' 张，保存在本机浏览器）· 科目：' + currentSubjects().join(' / ');
+}
+
+/* Day 12：清除筛选（第三种情况：清空后恢复完整列表） */
 function clearFilters() {
   if (!isFiltering()) return;
   currentSubject = '全部';
+  currentSub = '';
   currentKeyword = '';
   els.searchInput.value = '';
   syncHash();
@@ -231,6 +431,7 @@ function syncHash() {
   const p = new URLSearchParams();
   if (currentKeyword.trim()) p.set('q', currentKeyword.trim());
   if (currentSubject !== '全部') p.set('subject', currentSubject);
+  if (currentSubject !== '全部' && currentSub) p.set('sub', currentSub);
   if (demoState) p.set('demo', demoState);
   Router.replace(Router.build('wall', [], p));
 }
@@ -298,10 +499,16 @@ function applyRoute(route) {
   // 卡片墙（含筛选参数；切回来时先清空旧条件，避免上一个关键词阴魂不散）
   showView('wall');
   currentSubject = '全部';
+  currentSub = '';
   currentKeyword = (r.query.get('q') || '').trim();
   els.searchInput.value = currentKeyword;
   const s = (r.query.get('subject') || '').trim();
-  if (s && ['全部'].concat(currentSubjects()).indexOf(s) >= 0) currentSubject = s;
+  if (s && ['全部'].concat(currentSubjects()).indexOf(s) >= 0) {
+    currentSubject = s;
+    const sub = (r.query.get('sub') || '').trim();
+    // 子分类参数只在科目有效时生效；配置没了或写错了就静默回到"全部子类"，页面不能白屏
+    if (sub && (effectiveSubs(s).indexOf(sub) >= 0 || sub === '未分类')) currentSub = sub;
+  }
   if (cards.length) { renderFilters(currentSubjects()); render(); }
   else if (demoState) showState(demoState);
 }
@@ -316,6 +523,8 @@ function toggleAddPanel(force) {
 function saveCard() {
   let subject = els.fSubject.value;
   if (subject === '__custom') subject = els.fSubjectCustom.value.trim();
+  let sub = els.fSub.value;
+  if (sub === '__custom') sub = els.fSubCustom.value.trim();
   const front = els.fFront.value.trim();
   const back = els.fBack.value.trim();
   if (!subject || !front || !back) {
@@ -323,9 +532,13 @@ function saveCard() {
     els.formMsg.className = 'form-msg warn';
     return;
   }
+  // 新科目/新子分类顺手登记进分类配置，筛选和管理面板里立刻能看到
+  if (!categories[subject]) categories[subject] = [];
+  if (sub && categories[subject].indexOf(sub) < 0) categories[subject].push(sub);
+  KQStore.saveCategories(categories);
   const card = {
     id: 'u' + Date.now(),
-    subject: subject, type: '问答', level: 1,
+    subject: subject, sub: sub || '', type: '问答', level: 1,
     front: front, back: back, local: true
   };
   if (KQStore.addCard(card)) {
@@ -352,6 +565,7 @@ function load() {
       baseSubjects = data.subjects;
       cards = data.cards.map(function (c) { c.local = false; return c; }).concat(KQStore.getCards());
       if (!cards || cards.length === 0) { showState('empty'); return; } // 状态 2：空（卡片库本来就没内容）
+      initCategories(); // 两级分类：按科目初始化配置（用户配置过就用用户的）
       renderFilters(currentSubjects());
       updateStats();
       applyRoute(); // Day 13：数据就绪后按地址栏决定显示哪个视图、哪种状态
@@ -364,6 +578,7 @@ function load() {
 }
 
 /* ＝＝＝ 事件绑定 ＝＝＝ */
+renderSubOptions(els.fSubject.value); // 表单子分类下拉框的初始选项
 document.getElementById('retryBtn').addEventListener('click', load);
 
 /* Day 13：导航用 <a href="#/..."> 原生链接，点它浏览器自己改地址，
@@ -387,7 +602,37 @@ els.clearBtn.addEventListener('click', clearFilters);
 document.getElementById('noResultClearBtn').addEventListener('click', clearFilters);
 
 els.fSubject.addEventListener('change', function () {
-  els.fSubjectCustom.classList.toggle('hidden', els.fSubject.value !== '__custom');
+  const isCustom = els.fSubject.value === '__custom';
+  els.fSubjectCustom.classList.toggle('hidden', !isCustom);
+  renderSubOptions(isCustom ? els.fSubjectCustom.value.trim() : els.fSubject.value);
+});
+/* 科目 → 子分类联动：'不分子类' + 该科目配置的子类 + 自定义… */
+function renderSubOptions(subject) {
+  els.fSub.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = '不分子类';
+  els.fSub.appendChild(none);
+  subsOf(subject).forEach(function (s) {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    els.fSub.appendChild(opt);
+  });
+  const custom = document.createElement('option');
+  custom.value = '__custom';
+  custom.textContent = '自定义…';
+  els.fSub.appendChild(custom);
+  els.fSubCustom.classList.add('hidden');
+}
+els.fSub.addEventListener('change', function () {
+  els.fSubCustom.classList.toggle('hidden', els.fSub.value !== '__custom');
+  if (els.fSub.value === '__custom') els.fSubCustom.focus();
+});
+document.getElementById('catCloseBtn').addEventListener('click', function () {
+  toggleCatPanel(false);
+  renderFilters(currentSubjects()); // 面板里加过子类，出来后筛选行同步刷新
+  render();
 });
 document.getElementById('backWallBtn').addEventListener('click', function () { Router.go(Router.build('wall')); });
 
@@ -421,3 +666,7 @@ Quiz.init({
 
 /* 支持 #quiz 直达闯关视图（方便分享/截图） */
 load();
+
+/* 测试钩子（只读）：CDP 自动化断言当前筛选状态用，不参与页面逻辑 */
+window.__kq_currentSubject = function () { return currentSubject; };
+window.__kq_currentSub = function () { return currentSub; };
