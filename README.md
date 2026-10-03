@@ -17,6 +17,7 @@ python -m http.server 8000
 ## 当前进度
 
 
+- **Day 15**：打通云端链路——产出 [api-contract.md](api-contract.md) 接口契约（页面动作→接口对照表 + `cards` / `quiz_records` 两表数据模型 + 7 个接口全登记含响应/错误形状，本周唯一仲裁物）；`cloudbase/functions/api/` 云函数实现 `GET /api/health`（不连数据库，未实现接口按契约返回 501，本地路由单测 7/7）；部署清单见 [docs/day15-cloudbase-setup.md](docs/day15-cloudbase-setup.md)（注册/授权/发布由学员本人按附录 M 操作）
 - **Day 14（第 2 周周验证日）**：轻量用户测试——预演走查（375px 真机视口量化 57 个可点元素）发现「详情 ›」入口仅 39×20px、低于 44px 触屏最小点击目标且紧邻翻面热区；最小修复为 309×44px 通栏按钮后超小目标 33→9，Day 11/12/13 全部旧测试回归通过；同伴测试话术与记录表见 [docs/day14-usability-test.md](docs/day14-usability-test.md)，第 2 周周验证材料见 [docs/week2-verification.md](docs/week2-verification.md)
 - **Day 13**：三视图地址路由 + 四状态——`#/wall`、`#/quiz`、`#/card/<id>` 全部可独立访问（可分享、可刷新、前进后退可用）；新增**卡片详情页**（面包屑 + 同科目卡片 + 找不到的边界态）构成「列表 → 详情」多级页面；列表四态齐备且支持 `?demo=` 常驻演示；导航升级为真链接 + `aria-current`，卡片支持键盘翻面；CDP 十三路径测试全过
 - **Day 12**：项目内 Skill（`.workbuddy/skills/kq-frontend-audit/`：SKILL.md + 对比度复算脚本 + 可访问性脚本 + 调用记录）并真实调用——修改前复算揪出 7 处存量对比度不达标、可访问性脚本揪出表单缺标签、截图揪出 `.hidden` 被 toast 反杀的 Day 11 遗留 bug；关键词 + 科目组合筛选上线（有结果 / 无结果 / 清空恢复三态，筛选条件写入 URL 可直达）

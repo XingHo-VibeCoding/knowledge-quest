@@ -44,7 +44,10 @@ knowledge-quest/
 ├── js/quiz.js           # 闯关模式（Day 9）
 ├── js/router.js         # 极简哈希路由：#/wall / #/quiz / #/card/<id>（Day 13）
 ├── js/store.js          # localStorage 持久化（Day 9）
-├── data/quest-cards.json# mock 卡片数据
+├── api-contract.md      # 接口契约（第 3 周唯一仲裁物，Day 15 建）
+├── cloudbase/
+│   └── functions/api/   # CloudBase 云函数（Day 15：GET /api/health；Day 16-22 按契约补齐）
+├── data/quest-cards.json# mock 卡片数据（24 张，Day 16 将灌入 cards 表作种子）
 ├── .workbuddy/skills/kq-frontend-audit/  # 项目内可复用 Skill（Day 12）：SKILL.md + 对比度/可访问性脚本 + 调用记录
 └── docs/                # 截图与文档（按需）
 ```

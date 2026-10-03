@@ -1,0 +1,8 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "knowledge-quest 云函数（HTTP 云接入）：Day 15 仅 GET /api/health，其余接口按 api-contract.md 于 Day 16-22 实现",
+  "main": "index.js",
+  "dependencies": {},
+  "license": "MIT"
+}
