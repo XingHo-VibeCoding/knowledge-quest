@@ -46,6 +46,19 @@
 
 也可由 AI 通过连接器/CLI 帮传（授权后说一声即可）。
 
+**方式 C（本机已装好，最省事）：一条命令**
+
+本机已安装 CloudBase CLI 3.8.5（`@cloudbase/cli`），支持一次完成「建函数 + 建 HTTP 路由 + 传静态站」：
+
+```bash
+# ① 浏览器授权一次（本人操作，约 30 秒；注册 CloudBase 之后才可用）
+tcb login
+# ② 一条命令部署全部（AI 执行）
+bash cloudbase/deploy.sh <环境ID>
+```
+
+`cloudbase/deploy.sh` 做四件事：检查登录 → `fn deploy api --httpFn --path /api`（建云函数并同时开 `/api` 路由）→ 把 `index.html`/`css`/`js`/`data` 传到静态托管并逐文件校验 → 打印公网地址供自检。它不碰数据库、不开通任何计费项。
+
 ## 4. 验证清单
 
 | # | 检测 | 通过标准 |

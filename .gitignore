@@ -3,3 +3,6 @@
 *.log
 Thumbs.db
 .DS_Store
+
+# 部署临时目录（CloudBase 静态托管上传暂存，见 cloudbase/deploy.sh）
+.cloudbase-dist/
