@@ -13,8 +13,13 @@
  *   4. 换展品时文案错峰入场（标题 → 编号 → 谜面），箭头左右不等高、略微旋转，打破对称
  *   姿态同样由卡片 id 做种子：同一张卡的摆放永远一致，不会每次刷新都乱跳。
  *
- * 深色底文字对比度按 #0b0c11 复算（WCAG AA）：
- *   主文字 #f2f3f7 ≈ 17:1 / 次要 #a8aec0 ≈ 8:1 / 品牌亮紫 #9aa4ff ≈ 7:1
+ * 文字对比度按「最暗纸底 #f2ece2 / 卡面最暗档 #faf6ef」复算（WCAG AA）：
+ *   主文字 #2c2a35 ≈ 12:1 / 次要 #5d5a6b ≈ 5.7:1 / 小字最低档 #666276 ≈ 5.0:1
+ *
+ * 2026-10-03 三次改造（用户反馈"不喜欢那个颜色，想要明亮轻松一点"）：
+ *   整馆由「暗色展馆」换成「暖白纸底 + 糖果色」——版式一行没动（姿态/叠卡/视差/错峰入场全部保留），
+ *   只把调色板换掉：暗底 #0b0c11 → 暖白纸底 #fdfbf6~#f2ece2；红蓝喷溅 → 糖果色软斑 + 彩纸屑；
+ *   白色划痕（浅底看不见）→ 暖灰铅笔线。文字色全部重新按最暗纸底 / 卡面复算。
  */
 const Gallery = {
   els: {},
@@ -242,65 +247,82 @@ const Gallery = {
 
     const card = this.list[this.idx];
     const rnd = this.mulberry32(this.seed(card ? String(card.id) : 'kq-empty'));
-    const RED = [[225, 29, 72], [190, 18, 60], [120, 10, 40]];
-    const BLUE = [[37, 99, 235], [29, 78, 216], [30, 41, 120]];
+    // 糖果色盘（明亮版）：玫瑰 / 天蓝 / 薄荷 / 奶油黄 / 薰衣草
+    const ROSE   = [[244,140,166],[212,69,106],[255,186,204]];
+    const SKY    = [[126,178,241],[96,150,226],[188,220,250]];
+    const MINT   = [[120,205,180],[86,186,160],[196,235,222]];
+    const BUTTER = [[248,206,116],[246,224,150],[255,238,186]];
+    const LILAC  = [[178,160,240],[150,132,224],[214,204,246]];
+    const POTS = [ROSE, SKY, MINT, BUTTER, LILAC];
 
-    // 1) 大团软光斑：红蓝各若干，低透明度，打底氛围
+    // 1) 大团软色斑：糖果色低透明度铺底，明亮版靠"淡"而不是靠"暗"撑氛围
     const blobCount = 4 + Math.floor(rnd() * 2);
     for (let i = 0; i < blobCount; i++) {
-      const c = (i % 2 === 0 ? RED : BLUE)[Math.floor(rnd() * 3)];
-      const x = rnd() * w, y = rnd() * h, r = 140 + rnd() * 220;
+      const c = POTS[i % POTS.length][Math.floor(rnd() * 3)];
+      const x = rnd() * w, y = rnd() * h, r = 150 + rnd() * 230;
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.10 + rnd() * 0.12) + ')');
+      g.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.16 + rnd() * 0.20) + ')');
       g.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0)');
       ctx.fillStyle = g;
       ctx.fillRect(x - r, y - r, r * 2, r * 2);
     }
 
-    // 2) 喷溅点簇：每团几十个小点，离中心越远越小越淡
+    // 2) 喷溅点簇：糖果色小点，像水彩甩笔
     const clusters = 3 + Math.floor(rnd() * 2);
     for (let i = 0; i < clusters; i++) {
-      const c = (rnd() < 0.5 ? RED : BLUE)[Math.floor(rnd() * 2)];
+      const c = POTS[Math.floor(rnd() * POTS.length)][Math.floor(rnd() * 2)];
       const cx = rnd() * w, cy = rnd() * h, reach = 80 + rnd() * 120;
       const dots = 50 + Math.floor(rnd() * 60);
       for (let j = 0; j < dots; j++) {
         const ang = rnd() * Math.PI * 2;
-        const d = Math.pow(rnd(), 1.8) * reach; // 靠中心更密
+        const d = Math.pow(rnd(), 1.8) * reach;
         const x = cx + Math.cos(ang) * d, y = cy + Math.sin(ang) * d;
-        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.15 + rnd() * 0.4) + ')';
+        ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.22 + rnd() * 0.45) + ')';
         ctx.beginPath();
         ctx.arc(x, y, 0.6 + rnd() * (d > reach * 0.6 ? 2 : 5), 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
-    // 3) 故障色块：横条矩形，红/蓝/白错位
-    const rects = 9 + Math.floor(rnd() * 8);
-    for (let i = 0; i < rects; i++) {
-      const pick = rnd();
-      const c = pick < 0.4 ? RED[0] : pick < 0.8 ? BLUE[0] : [240, 240, 245];
-      ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.08 + rnd() * 0.22) + ')';
-      ctx.fillRect(rnd() * w, rnd() * h, 26 + rnd() * 200, 4 + rnd() * 34);
+    // 3) 彩纸屑：换成小方块并带随机旋转（原来是故障横条，浅底上"故障风"会显脏）
+    const confetti = 14 + Math.floor(rnd() * 10);
+    for (let i = 0; i < confetti; i++) {
+      const c = POTS[Math.floor(rnd() * POTS.length)][Math.floor(rnd() * 3)];
+      const cw = 7 + rnd() * 16, ch = 5 + rnd() * 11;
+      ctx.save();
+      ctx.translate(rnd() * w, rnd() * h);
+      ctx.rotate(rnd() * Math.PI);
+      ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.30 + rnd() * 0.40) + ')';
+      ctx.beginPath();
+      if (ctx.roundRect) { ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 2); } else { ctx.rect(-cw / 2, -ch / 2, cw, ch); }
+      ctx.fill();
+      ctx.restore();
     }
 
-    // 4) 白色划痕：细贝塞尔曲线
+    // 4) 铅笔线：原来在暗底用白划痕，浅底上白线等于隐形 → 改成暖灰细曲线
     const strokes = 3 + Math.floor(rnd() * 3);
     ctx.lineCap = 'round';
     for (let i = 0; i < strokes; i++) {
-      ctx.strokeStyle = 'rgba(255,255,255,' + (0.10 + rnd() * 0.25) + ')';
-      ctx.lineWidth = 0.8 + rnd() * 1.4;
+      const pastel = rnd() < 0.45;
+      if (pastel) {
+        const c = POTS[Math.floor(rnd() * POTS.length)][0];
+        ctx.strokeStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (0.30 + rnd() * 0.25) + ')';
+      } else {
+        ctx.strokeStyle = 'rgba(96,84,72,' + (0.10 + rnd() * 0.12) + ')';
+      }
+      ctx.lineWidth = 1 + rnd() * 2.2;
       ctx.beginPath();
       ctx.moveTo(rnd() * w, rnd() * h);
       ctx.bezierCurveTo(rnd() * w, rnd() * h, rnd() * w, rnd() * h, rnd() * w, rnd() * h);
       ctx.stroke();
     }
 
-    // 5) 尘点
-    const dust = 120;
+    // 5) 纸屑颗粒：浅底上要用"暖灰小点"才有纸感，白点会看不见
+    const dust = 140;
     for (let i = 0; i < dust; i++) {
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.03 + rnd() * 0.14) + ')';
+      ctx.fillStyle = 'rgba(104,90,76,' + (0.05 + rnd() * 0.13) + ')';
       ctx.beginPath();
-      ctx.arc(rnd() * w, rnd() * h, rnd() * 1.4, 0, Math.PI * 2);
+      ctx.arc(rnd() * w, rnd() * h, rnd() * 1.3, 0, Math.PI * 2);
       ctx.fill();
     }
   }
