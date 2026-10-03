@@ -19,10 +19,11 @@
 | 记录项 | 我的值（填这里） |
 |---|---|
 | 环境 ID | `zgr202511108235qr-d2dkj33964b842` |
-| 剩余额度 | 体验版固定配额（存储/调用次数等），实时值见控制台「用量与费用」页 —— 待抄录 |
-| 到期日期 | `2027-04-03 23:59:59`（体验版，2026-10-03 开通，约半年） |
+| 剩余额度 | 免费体验版：**每月 3,000 资源点**（0 元 / 月，1 个免费环境）；QPS 500、调用 20 万次/月、容量 3GB、云函数 15 万 GBs、CDN 10GB。**不支持资源包与按量付费**，额度用尽即停（不会产生欠费） |
+| 到期日期 | `2027-04-03 23:59:59`（体验版，2026-10-03 开通，约 6 个月；单次续期 6 个月，到期前 1 个月内可续） |
 
-> 2026-10-03 实测：`tcb env list --json` → `PackageName: 体验版`、`ExpireTime: 2027-04-03 23:59:59`、`Status: NORMAL`、地域 `ap-shanghai`。
+> 2026-10-03 实测（`tcb env list --json`）：`PackageName: 体验版`、`ExpireTime: 2027-04-03 23:59:59`、`Status: NORMAL`、`PayMode: PREPAYMENT`、`IsAutoRenew: false`、`EnableOverrun: false`（未开启超量按量计费）、地域 `ap-shanghai`。
+> 额度规格来源：CloudBase 官方定价页 <https://www.cloudbase.net/pricing>（FREE 档：3,000 资源点 / 月）。
 > 到期后公网地址会失效；恢复办法见附录 E（备份导出）+ Day 26/27（回滚演练）。
 
 ## 2. 部署 /api/health 云函数
