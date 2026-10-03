@@ -555,3 +555,199 @@ main { flex: 1; padding-bottom: 30px; }
 .cat-del-btn:focus-visible, .cat-add-btn:focus-visible {
   outline: 2px solid var(--brand); outline-offset: 2px;
 }
+
+/* ＝＝＝ 展览模式（2026-10-03）：暗色展馆风 ＝＝＝
+   深底 #0b0c11，文字对比度按它复算（WCAG AA）：
+   主文字 #f2f3f7 ≈ 17:1 / 次要 #a8aec0 ≈ 8:1 / 描述 #c6cad6 ≈ 11:1 / 品牌亮紫 #9aa4ff ≈ 7:1
+   背景装饰层是 #gArt 上的程序化喷溅/故障（见 js/gallery.js），不承载文字。 */
+.gallery {
+  position: fixed;
+  inset: 0;
+  z-index: 60;                    /* 盖住头部/页脚，整个视口就是展台 */
+  background: #0b0c11;
+  color: #f2f3f7;
+  overflow: hidden;
+}
+.gallery canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* 退出按钮：右上角，44px 触屏最小点击目标 */
+.g-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,.07);
+  color: #f2f3f7;
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 999px;
+  padding: 0 18px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .16s;
+}
+.g-close:hover { background: rgba(255,255,255,.16); }
+.g-close-key {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #a8aec0;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* 展台：居中展品 + 左右箭头 */
+.g-stage {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 3vw, 32px);
+  padding: 64px 16px 170px;
+}
+
+/* 展品（金属边框大卡）：正面是"？"待揭晓，背面是答案 */
+.g-frame {
+  position: relative;
+  width: min(430px, 78vw);
+  height: min(540px, 60vh);
+  border-radius: 8px;
+  cursor: pointer;
+  background: linear-gradient(155deg, #232637 0%, #151824 55%, #10121b 100%);
+  border: 1px solid rgba(255,255,255,.30);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.8),
+    0 26px 70px rgba(0,0,0,.65),
+    inset 0 0 0 8px rgba(255,255,255,.045);
+  transition: transform .2s, box-shadow .2s;
+}
+.g-frame:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.8),
+    0 34px 84px rgba(0,0,0,.7),
+    inset 0 0 0 8px rgba(255,255,255,.06);
+}
+.g-frame:focus-visible { outline: 3px solid #9aa4ff; outline-offset: 5px; }
+.g-face {
+  position: absolute;
+  inset: 0;
+  padding: 26px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.g-face-back { display: none; justify-content: flex-start; text-align: left; }
+.g-frame.flipped .g-face-front { display: none; }
+.g-frame.flipped .g-face-back { display: flex; }
+.g-mystery {
+  font-size: clamp(90px, 18vw, 160px);
+  font-weight: 800;
+  line-height: 1;
+  color: #9aa4ff;                 /* on 深底 ≈ 7:1 */
+  text-shadow: 0 0 60px rgba(97,87,255,.45);
+}
+.g-face-hint { margin-top: 22px; font-size: 13px; line-height: 1.8; color: #a8aec0; }
+.g-q-echo {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #a8aec0;
+  border-left: 3px solid #9aa4ff;
+  padding-left: 10px;
+  margin-bottom: 14px;
+  word-break: break-all;
+}
+.g-answer {
+  font-size: clamp(17px, 2.4vw, 21px);
+  line-height: 1.7;
+  font-weight: 600;
+  color: #e4e6ff;
+  overflow: auto;
+  word-break: break-all;
+}
+
+/* 左右箭头：52px 圆钮 */
+.g-arrow {
+  z-index: 2;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.35);
+  color: #f2f3f7;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .16s, transform .16s;
+}
+.g-arrow:hover { background: rgba(255,255,255,.16); transform: scale(1.06); }
+.g-arrow:active { transform: scale(.96); }
+.g-arrow:focus-visible { outline: 3px solid #9aa4ff; outline-offset: 3px; }
+
+/* 展品说明（页脚信息层）：左下主题大字 + 右下谜面，pointer-events:none 不挡展品 */
+.g-info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 28px 24px;
+  pointer-events: none;
+}
+.g-tag { font-size: 12px; letter-spacing: 4px; color: #9aa4ff; margin-bottom: 8px; }
+.g-title {
+  font-size: clamp(26px, 4.6vw, 44px);
+  font-weight: 800;
+  letter-spacing: 1px;
+  line-height: 1.15;
+  max-width: 46vw;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.g-num { margin-top: 10px; font-size: 13px; letter-spacing: 2px; color: #a8aec0; }
+.g-info-right { max-width: 320px; }
+.g-desc {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #c6cad6;
+  border-top: 1px solid rgba(255,255,255,.28);
+  padding-top: 10px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-all;
+}
+.g-keys { margin-top: 8px; font-size: 11px; letter-spacing: 1px; color: #a8aec0; text-align: right; }
+
+/* 动效克制：prefers-reduced-motion 一律取消 */
+@media (prefers-reduced-motion: reduce) {
+  .g-frame, .g-arrow, .g-close { transition: none; }
+}
+
+/* 小屏：箭头浮到展品两侧，说明改为竖排 */
+@media (max-width: 640px) {
+  .g-stage { padding: 60px 8px 230px; }
+  .g-arrow { position: absolute; top: 42%; }
+  .g-prev { left: 10px; }
+  .g-next { right: 10px; }
+  .g-info { flex-direction: column; align-items: flex-start; gap: 14px; padding: 0 18px 18px; }
+  .g-title { max-width: 100%; }
+  .g-info-right { max-width: 100%; }
+  .g-keys { text-align: left; }
+}

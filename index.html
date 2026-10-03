@@ -17,6 +17,7 @@
              并用 aria-current="page" 告诉读屏当前在哪一页） -->
         <nav class="viewbtns" aria-label="页面导航">
           <a id="tabWall" class="chip" href="#/wall" aria-current="page">📚 卡片墙</a>
+          <a id="tabGallery" class="chip" href="#/gallery">🖼 展览模式</a>
           <a id="tabQuiz" class="chip" href="#/quiz">⚔️ 开始闯关</a>
         </nav>
         <button id="addBtn" class="shuffle" type="button">＋ 添加卡片</button>
@@ -165,6 +166,39 @@
         </div>
       </div>
     </div>
+    <!-- ＝＝＝ 视图四：展览模式（#/gallery，2026-10-03） ＝＝＝
+         暗色展馆风：一次只展一件卡，←/→ 换展品、回车/点击翻面、ESC 退场。
+         背景装饰由 js/gallery.js 用 Canvas 按卡片 id 做种子程序化生成，无外部图片。 -->
+    <div id="view-gallery" class="gallery hidden" role="region" aria-label="展览模式">
+      <canvas id="gArt" aria-hidden="true"></canvas>
+      <button id="gClose" class="g-close" type="button">✕ 退出展览 <span class="g-close-key">ESC</span></button>
+      <div class="g-stage">
+        <button id="gPrev" class="g-arrow g-prev" type="button" aria-label="上一件展品">‹</button>
+        <figure id="gFrame" class="g-frame" tabindex="0" role="button" aria-label="展品：按回车翻面看答案">
+          <div class="g-face g-face-front">
+            <p class="g-mystery" aria-hidden="true">？</p>
+            <p class="g-face-hint">谜面在右下角说明里<br>点击或按回车翻面揭晓</p>
+          </div>
+          <div class="g-face g-face-back">
+            <p id="gQEcho" class="g-q-echo"></p>
+            <p id="gAnswer" class="g-answer"></p>
+          </div>
+        </figure>
+        <button id="gNext" class="g-arrow g-next" type="button" aria-label="下一件展品">›</button>
+      </div>
+      <div class="g-info">
+        <div class="g-info-left">
+          <p class="g-tag">EXHIBIT · 知识展</p>
+          <h2 id="gTitle" class="g-title">—</h2>
+          <p id="gNum" class="g-num">No. 000 / 000</p>
+        </div>
+        <div class="g-info-right">
+          <p id="gDesc" class="g-desc">—</p>
+          <p class="g-keys">← → 浏览 · 回车翻面 · ESC 返回</p>
+        </div>
+      </div>
+    </div>
+
     <!-- ＝＝＝ 视图三：卡片详情（#/card/<id>，Day 13 多级页面的第二级） ＝＝＝ -->
     <div id="view-detail" class="hidden">
       <h2 class="sr-only">卡片详情</h2>
@@ -224,6 +258,7 @@
   <script src="js/store.js"></script>
   <script src="js/components.js"></script>
   <script src="js/quiz.js"></script>
+  <script src="js/gallery.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

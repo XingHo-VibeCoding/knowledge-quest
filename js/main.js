@@ -40,12 +40,14 @@ const els = {
   catCloseBtn: document.getElementById('catCloseBtn'),
   fSub: document.getElementById('fSub'),
   fSubCustom: document.getElementById('fSubCustom'),
-  // 三视图（Day 13：卡片墙 / 闯关 / 卡片详情）
+  // 三视图（Day 13：卡片墙 / 闯关 / 卡片详情）＋ 展览模式（2026-10-03）
   viewWall: document.getElementById('view-wall'),
   viewQuiz: document.getElementById('view-quiz'),
   viewDetail: document.getElementById('view-detail'),
+  viewGallery: document.getElementById('view-gallery'),
   tabWall: document.getElementById('tabWall'),
   tabQuiz: document.getElementById('tabQuiz'),
+  tabGallery: document.getElementById('tabGallery'),
   // 卡片详情（Day 13）
   detailBody: document.getElementById('detailBody'),
   detailMissing: document.getElementById('detailMissing'),
@@ -444,12 +446,15 @@ function showView(name) {
   els.viewWall.classList.toggle('hidden', name !== 'wall');
   els.viewQuiz.classList.toggle('hidden', name !== 'quiz');
   els.viewDetail.classList.toggle('hidden', name !== 'card');
+  els.viewGallery.classList.toggle('hidden', name !== 'gallery');
   // 当前页不仅靠颜色高亮：aria-current="page" 让读屏也知道自己在哪一页
   els.tabWall.classList.toggle('active', name === 'wall');
   els.tabQuiz.classList.toggle('active', name === 'quiz');
+  els.tabGallery.classList.toggle('active', name === 'gallery');
   els.tabWall.setAttribute('aria-current', name === 'wall' ? 'page' : 'false');
   els.tabQuiz.setAttribute('aria-current', name === 'quiz' ? 'page' : 'false');
-  const titles = { wall: '卡片墙', quiz: '闯关', card: '卡片详情' };
+  els.tabGallery.setAttribute('aria-current', name === 'gallery' ? 'page' : 'false');
+  const titles = { wall: '卡片墙', quiz: '闯关', card: '卡片详情', gallery: '展览模式' };
   document.title = titles[name] + ' · 知识闯关';
   if (name === 'quiz') Quiz.start(cards); else Quiz.stop();
 }
@@ -496,6 +501,14 @@ function applyRoute(route) {
     return;
   }
   if (r.name === 'quiz') { showView('quiz'); return; }
+  // 展览模式（2026-10-03）：沿用当前筛选结果做展品清单，?i=n 直达第 n 件展品。
+  // 注意这里不动 currentSubject/currentKeyword——从筛选后的卡片墙进场，展馆里展的就是筛出来的那批。
+  if (r.name === 'gallery') {
+    showView('gallery');
+    const gi = parseInt(r.query.get('i') || '0', 10);
+    Gallery.enter(visibleCards(), isNaN(gi) ? 0 : gi);
+    return;
+  }
   // 卡片墙（含筛选参数；切回来时先清空旧条件，避免上一个关键词阴魂不散）
   showView('wall');
   currentSubject = '全部';
@@ -644,6 +657,14 @@ Router.onChange(function (route) {
 });
 
 /* 闯关模块初始化 */
+Gallery.init();
+
+/* 展览模式键盘：←/→ 换展品、回车翻面、ESC 退场（只在 gallery 激活时接管按键） */
+document.addEventListener('keydown', function (ev) {
+  if (currentRoute !== 'gallery') return;
+  Gallery.handleKey(ev);
+});
+
 Quiz.init({
   view: els.viewQuiz,
   progress: document.getElementById('qProgress'),
