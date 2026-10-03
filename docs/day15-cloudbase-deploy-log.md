@@ -14,19 +14,35 @@
 | 静态托管开通 + 前端上传 | ✅ | 15 个文件，`hosting detail` → Status `[Online]` |
 | 线上前端可访问 | ✅ | https://zgr202511108235qr-d2dkj33964b842-1500012353.tcloudbaseapp.com （index.html 200，含展览模式与亮色令牌） |
 
-## 二、未打通的部分 ❌：云函数 HTTP 访问（`/api`）
+## 二、卡点与修复全过程 ✅：云函数 HTTP 访问（`/api`）
 
-现象：`GET https://zgr202511108235qr-d2dkj33964b842.service.tcloudbase.com/api/health`
-返回 `{"code":"INVALID_PATH","message":"Invalid path..."}`（早期为 `FUNCTIONS_PARAM_INVALID`）。
+中间态现象：`GET https://zgr202511108235qr-d2dkj33964b842.service.tcloudbase.com/api/health`
+先返回 `{"code":"FUNCTIONS_PARAM_INVALID",...}`，改路由后变成 `{"code":"INVALID_PATH",...}`。**最终已打通（200）**。
 
-排查过程与结论：
+排查与修复：
 
 1. **函数本身没问题**：本地 `node server.js` 壳实测 `GET /api/health` → 200 `{"ok":true,...}`、未知路径 → 404。
-2. **发现 CLI 自动建的路由类型错了**：`tcb routes list` 显示 `/api` 路由的上游类型是 **`SCF`**，而函数是 **HTTP（Web）函数**——类型不匹配，这正是 `FUNCTIONS_PARAM_INVALID` 的来源。
-   - 已用 `tcb routes edit --data '{"domain":"*","routes":[{"path":"/api","upstreamResourceType":"WEB_SCF","upstreamResourceName":"api","enablePathTransmission":true}]}' --yes` 改成 `WEB_SCF`（确认生效：`routes list` 已显示 `WEB_SCF / Enable`）。
-   - 仍未生效：改完后网关持续返回 `INVALID_PATH`（无匹配转发规则），说明系统域名 `*.service.tcloudbase.com` 的网关侧未按新路由收敛。
-3. **系统内部域名不允许手动建/改路由**：`tcb routes add` 直接拒绝 —— `domain ...service.tcloudbase.com is a system internal domain, manual creation or modification is not supported`。所以这条路只能等平台侧生效，或在控制台走「HTTP 访问服务」配置。
-4. **该新环境后端明显不稳定**：同一命令短时间内结果不一致（`fn list` 一次有函数、一次为空；环境创建后长时间 `UNAVAILABLE` 才变 `NORMAL`）。与官方社区近期多起报告一致（新建免费环境初始化/网关链路有波动）。
+2. **根因：CLI 自动建的路由把上游类型登记错了**。`tcb routes list` 显示 `/api` 路由上游是 **`SCF`**（事件函数），而我们的函数是 **HTTP（Web）函数** → 网关报 `FUNCTIONS_PARAM_INVALID`。
+   - 修复命令：
+     ```bash
+     tcb routes edit -e $ENV --yes --data '{"domain":"*","routes":[{"path":"/api","upstreamResourceType":"WEB_SCF","upstreamResourceName":"api","enablePathTransmission":true}]}'
+     ```
+   - 改完 `routes list` 显示 `WEB_SCF / Enable`，但**不是立刻生效**——网关侧还要几分钟收敛（期间一直 `INVALID_PATH`）。等待后重试即通。
+3. **系统内部域名不允许手动建/改路由**：`tcb routes add` 对 `*.service.tcloudbase.com` 直接拒绝（`system internal domain`），所以能做的就是把类型改对 + 等收敛，或改用自定义域名。
+4. **该新环境后端确实不稳**：同一命令短时间内结果不一致（`fn list` 一次有函数、一次为空；环境创建后长时间 `UNAVAILABLE` 才变 `NORMAL`）。与官方社区近期多起报告一致（新建免费环境初始化/网关链路有波动）。**遇到 "函数不存在" 先重试，别急着改代码。**
+
+### 线上自检结果（2026-10-04 01:02 实测）
+
+```bash
+GET  /api/health      -> 200  {"ok":true,"service":"knowledge-quest","time":"2026-10-03T17:02:05.625Z"}
+GET  /api/cards       -> 501  已登记未实现（按 api-contract.md）
+GET  /api/cards/3     -> 501  带 id 路径归一后命中登记表
+GET  /api/quiz-records-> 501
+POST /api/cards       -> 501
+GET  /api/nothing     -> 404  未知路径
+```
+
+> 注意：浏览器直接打开 CloudBase 默认测试域名（`*.service.tcloudbase.com` / `*.tcloudbaseapp.com`）会先看到腾讯云「页面访问提示（风险提醒）」拦截页，这是默认域名的既有行为，**机器访问（curl / 前端 fetch）不受影响**；想彻底去掉需绑定自定义域名，本项目暂不需要。
 
 ## 三、复现命令
 
