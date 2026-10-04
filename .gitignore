@@ -6,3 +6,6 @@ Thumbs.db
 
 # 部署临时目录（CloudBase 静态托管上传暂存，见 cloudbase/deploy.sh）
 .cloudbase-dist/
+
+# 含真实密钥的本地部署配置（Day 17 起）：只在本机用，永不入库
+cloudbaserc.local.json

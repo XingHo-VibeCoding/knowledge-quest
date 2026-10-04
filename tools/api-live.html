@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>接口真库核验台 · knowledge-quest</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f5f4fb; color: #241f3a;
+         font: 14px/1.7 "Segoe UI", "Microsoft YaHei", sans-serif; padding: 28px 32px 60px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .sub { color: #5c5680; font-size: 13px; margin-bottom: 18px; }
+  .base { background: #fff; border: 1px solid #e2dff0; border-radius: 10px; padding: 12px 16px;
+          font: 13px Consolas, monospace; color: #3b2f6b; margin-bottom: 16px; word-break: break-all; }
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  button { background: #6b4ee6; color: #fff; border: 0; border-radius: 999px; padding: 9px 16px;
+           font-size: 13px; cursor: pointer; }
+  button:hover { background: #5a3fd4; }
+  button.err { background: #a8484f; }
+  .panel { background: #fff; border: 1px solid #e2dff0; border-radius: 12px; padding: 16px 18px; }
+  .row { font: 13px Consolas, monospace; color: #4b4468; margin-bottom: 8px; word-break: break-all; }
+  .row b { color: #241f3a; }
+  .ok { color: #1f7a4d; font-weight: 700; }
+  .bad { color: #b03a3a; font-weight: 700; }
+  pre { margin: 10px 0 0; background: #1c1c22; color: #dfe3ee; padding: 14px 16px; border-radius: 8px;
+        font: 12.5px Consolas, monospace; max-height: 420px; overflow: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+  <h1>接口真库核验台</h1>
+  <div class="sub">点一下按钮，就直接请求线上云函数，把「请求地址 / 状态码 / 原始返回」原样贴出来——数据是不是从数据库来的，一眼可查。</div>
+  <div class="base">接口基址：<span id="base"></span></div>
+
+  <div class="btns">
+    <button data-path="/cards?limit=3">GET /api/cards?limit=3</button>
+    <button data-path="/cards/3">GET /api/cards/3</button>
+    <button data-path="/quiz-records?limit=2">GET /api/quiz-records?limit=2</button>
+    <button data-path="/cards?subject=%E5%8F%A3%E8%AF%AD&limit=2">GET /api/cards?subject=口语</button>
+    <button class="err" data-path="/cards?limit=abc">GET /api/cards?limit=abc（错误形状）</button>
+  </div>
+
+  <div class="panel">
+    <div class="row">请求地址：<b id="reqUrl">—</b></div>
+    <div class="row">HTTP 状态：<span id="status">—</span> ｜ 耗时：<span id="cost">—</span> ｜ 返回条数：<span id="count">—</span></div>
+    <pre id="out">点上面的按钮开始核验。</pre>
+  </div>
+
+<script>
+  var API = 'https://zgr202511108235qr-d2dkj33964b842.service.tcloudbase.com/api';
+  document.getElementById('base').textContent = API;
+
+  function run(path) {
+    var url = API + path;
+    document.getElementById('reqUrl').textContent = url;
+    document.getElementById('status').textContent = '请求中…';
+    document.getElementById('cost').textContent = '—';
+    document.getElementById('count').textContent = '—';
+    document.getElementById('out').textContent = '...';
+    var t0 = Date.now();
+    fetch(url, { headers: { Accept: 'application/json' } })
+      .then(function (r) {
+        return r.text().then(function (txt) { return { status: r.status, txt: txt }; });
+      })
+      .then(function (res) {
+        var ms = Date.now() - t0;
+        document.getElementById('status').innerHTML =
+          '<span class="' + (res.status >= 200 && res.status < 300 ? 'ok' : 'bad') + '">' + res.status + '</span>';
+        document.getElementById('cost').textContent = ms + ' ms';
+        var body;
+        try { body = JSON.parse(res.txt); } catch (e) { body = null; }
+        document.getElementById('count').textContent =
+          (body && body.ok && typeof body.count === 'number') ? body.count : (body && body.ok === false ? '—（错误响应）' : '—');
+        document.getElementById('out').textContent = JSON.stringify(body || res.txt, null, 2);
+      })
+      .catch(function (e) {
+        document.getElementById('status').innerHTML = '<span class="bad">请求失败</span>';
+        document.getElementById('out').textContent = String(e);
+      });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('button'), function (b) {
+    b.addEventListener('click', function () { run(b.getAttribute('data-path')); });
+  });
+
+  run(location.hash ? decodeURIComponent(location.hash.slice(1)) : '/cards?limit=3');
+</script>
+</body>
+</html>

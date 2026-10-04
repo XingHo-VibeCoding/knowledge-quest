@@ -58,20 +58,34 @@
 - 时间一律 ISO 8601（`2026-10-03T12:00:00+08:00`）。
 - 列表响应统一带 `"count"`（本页条数），方便前端核对。
 
+### 服务端如何访问数据库（Day 17 补充，实测结论）
+
+接口形状不变，但「云函数怎么读到数据库」这件事在免费体验版上做过调整，记录在此备查：
+
+| 方案 | 结论 | 依据 |
+|---|---|---|
+| pg 直连（`PGHOST`/`PGUSER`/`PGPASSWORD` + pg 模块） | ❌ 本环境走不通 | 探针函数实测：数据库内网地址 `28.72.71.124:54325` **TCP 超时**；平台不注入 `PG*` 环境变量；免费体验版无「内网互联 / 公网直连」能力 |
+| 网关 HTTP API（PostgREST）+ 环境 API Key | ✅ **采用** | 探针实测网关域名可达（`401` = 通、缺鉴权）；创建 API Key 后可直读真库并验证「改库→接口变」 |
+
+- **实现位置**：所有查询集中在 `cloudbase/functions/api/db.js`（Day 19 会在此基础上正式拆成 repository 并跑回归）。
+- **参数化**：HTTP API 不传 SQL 字符串，查询条件以 URL query 参数下发、由服务端解析绑定，不存在字符串拼接注入。
+- **密钥管理**：API Key 只进云函数环境变量（部署时由**不入库**的 `cloudbaserc.local.json` 注入）；前端、仓库、Git 历史里都没有它。
+- **跨域（CORS）**：免费版不允许新增「安全域名」（CLI 实测：当前套餐无法执行此操作），改为由云函数按白名单回显 `Access-Control-Allow-Origin`（**不使用 `*`**）；白名单＝GitHub Pages ＋ CloudBase 静态托管 ＋ 本机任意端口。
+
 ### 1. `GET /api/health` ✅ 已实现（Day 15）
 
 - 请求参数：无
 - 成功：`200 { "ok": true, "service": "knowledge-quest", "time": "<服务器时间>" }`
 - 错误：理论上无（不连数据库；连不上网关即 502）
 
-### 2. `GET /api/cards` 🕐 Day 17 实现
+### 2. `GET /api/cards` ✅ 已实现（Day 17）
 
 - 请求参数（query，均可选）：`subject`（科目名，精确匹配）、`q`（关键词，对 front/back 做包含匹配）、`limit`（默认 100）
 - 成功：`200 { "ok": true, "count": <n>, "data": [ { id, subject, sub, type, level, front, back, source, created_at }, ... ] }`
 - 错误：`400 { ok:false, error:{ code:"BAD_LIMIT", message:"limit 必须是正整数" } }`；`500 { ..., code:"DB_ERROR" }`
 - 空数据不报错：`count: 0, data: []`（前端已有「没有找到相关内容」空态承接）
 
-### 3. `GET /api/cards/:id` 🕐 Day 17 实现
+### 3. `GET /api/cards/:id` ✅ 已实现（Day 17）
 
 - 请求参数：路径参数 `id`（正整数）
 - 成功：`200 { "ok": true, "data": { id, subject, sub, type, level, front, back, source, created_at } }`
@@ -90,7 +104,7 @@
 - 成功：`200 { "ok": true, "data": { id } }`
 - 错误：`404 { code:"CARD_NOT_FOUND" }`；`403 { code:"NOT_DELETABLE", message:"mock 卡不可删除" }`
 
-### 6. `GET /api/quiz-records` 🕐 Day 17 实现
+### 6. `GET /api/quiz-records` ✅ 已实现（Day 17）
 
 - 请求参数：`limit`（默认 10，按 date 倒序）
 - 成功：`200 { "ok": true, "count": <n>, "data": [ { id, score, total, card_ids, date, created_at }, ... ] }`
@@ -115,6 +129,7 @@
 |---|---|---|
 | Day 15（2026-10-03） | 建立本文档；7 个接口登记；首次定义两张表模型 | 第 3 周开工 |
 | Day 16（2026-10-04） | **契约一致性核对后修订 6 处**：① `cards` 补 `sub` 子分类字段；② `quiz_records` 补 `card_ids` 数组字段并明确两表**弱关联**；③ 新增「字段口径说明」（`id`/`source`/`local`/`created_at`/`card_ids`/`date`）；④ `POST /api/cards` 请求体补 `sub` 与「不含 id/source/created_at」；⑤ 各读接口响应字段清单补 `sub`/`card_ids`；⑥ 登记「前端只存单条最佳战绩 vs 接口写每轮一条」的差异（Day 18 处理） | 建表时拿真实数据（`data/quest-cards.json` 24 张卡全带 `sub`）与前端 `js/main.js`、`js/store.js` 的字段逐条核对，发现契约漏记；按「先改契约再改代码」的规矩回填 |
+| Day 17（2026-10-04） | ① `GET /api/cards`、`GET /api/cards/:id`、`GET /api/quiz-records` 标记 **已实现**；② 新增「服务端如何访问数据库」实测结论（pg 直连在免费版走不通 → 改用网关 HTTP API + 环境 API Key）；③ 登记 CORS 白名单方案 | 读接口上线，公网 7 项验证通过（含真库变更联动、400/404/501 错误形状）；访问方式变更属实现细节，接口形状未动 |
 
 > 核对方法：`information_schema.columns` 拉真实表结构 + `pg_constraint` 拉真实约束，与本文档字段清单逐条对齐；结论见 `docs/day16-contract-check.md`。
 

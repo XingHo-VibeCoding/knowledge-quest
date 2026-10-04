@@ -569,11 +569,51 @@ function saveCard() {
   }
 }
 
-/* 数据加载：mock 只读 + 用户自存卡合并；第 3 周换 API 时只改 load 里的 fetch */
+/* ＝＝＝ 数据来源（Day 17 起）＝＝＝
+ * 卡片数据优先读公网接口（数据库真数据）；接口不可用时回退本地 mock，保证页面不白屏。
+ * 接口地址由 Day 20 统一收敛到一处配置，这里先按常量写。
+ */
+const KQ_API_BASE = 'https://zgr202511108235qr-d2dkj33964b842.service.tcloudbase.com/api';
+let kqDataSource = 'api'; // 供控制台核对：api = 真库，local = 本地 mock
+
+function loadFromApi() {
+  return fetch(KQ_API_BASE + '/cards?limit=200', { headers: { Accept: 'application/json' } })
+    .then(function (r) {
+      return r.json().catch(function () { throw new Error('HTTP ' + r.status); }).then(function (body) {
+        if (!body || body.ok !== true || !Array.isArray(body.data)) {
+          throw new Error((body && body.error && body.error.message) || '接口返回异常');
+        }
+        return body.data;
+      });
+    });
+}
+
+function loadFromMock() {
+  return fetch('data/quest-cards.json')
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (d) { return { cards: d.cards, subjects: d.subjects }; });
+}
+
+/* 走接口时没有 subjects 字段，从卡片里按出现顺序去重推导 */
+function subjectsOf(rows) {
+  const seen = [];
+  rows.forEach(function (c) { if (c && c.subject && seen.indexOf(c.subject) < 0) seen.push(c.subject); });
+  return seen;
+}
+
 function load() {
   showState('loading'); // 状态 1：加载中
-  fetch('data/quest-cards.json')
-    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  loadFromApi()
+    .then(function (rows) {
+      kqDataSource = 'api';
+      console.log('[kq] 数据来源：公网接口（数据库真数据），共 ' + rows.length + ' 张卡');
+      return { cards: rows, subjects: subjectsOf(rows) };
+    })
+    .catch(function (e) {
+      kqDataSource = 'local';
+      console.warn('[kq] 接口不可用，回退本地 mock：' + e.message);
+      return loadFromMock();
+    })
     .then(function (data) {
       baseSubjects = data.subjects;
       cards = data.cards.map(function (c) { c.local = false; return c; }).concat(KQStore.getCards());

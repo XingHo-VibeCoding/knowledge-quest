@@ -29,19 +29,23 @@ const server = http.createServer(function (req, res) {
     };
 
     let out;
-    try {
-      out = handler.main(event);
-    } catch (e) {
-      out = {
-        statusCode: 500,
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        body: JSON.stringify({ ok: false, error: { code: 'BOOTSTRAP_ERROR', message: String(e && e.message) } }),
-      };
-    }
-
-    res.writeHead(out.statusCode || 200, out.headers || {});
-    res.end(out.body || '');
-    console.log('[api]', req.method, u.pathname, '->', out.statusCode);
+    // handler.main 从 Day 17 起是 async（读接口要访问数据层），统一用 Promise 承接
+    Promise.resolve()
+      .then(function () { return handler.main(event); })
+      .then(function (r) {
+        out = r;
+        res.writeHead(out.statusCode || 200, out.headers || {});
+        res.end(out.body || '');
+        console.log('[api]', req.method, u.pathname, '->', out.statusCode);
+      })
+      .catch(function (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          ok: false,
+          error: { code: 'BOOTSTRAP_ERROR', message: String(e && e.message) },
+        }));
+        console.log('[api]', req.method, u.pathname, '-> 500 (壳层异常)');
+      });
   });
 });
 
