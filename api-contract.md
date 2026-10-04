@@ -72,6 +72,16 @@
 - **密钥管理**：API Key 只进云函数环境变量（部署时由**不入库**的 `cloudbaserc.local.json` 注入）；前端、仓库、Git 历史里都没有它。
 - **跨域（CORS）**：免费版不允许新增「安全域名」（CLI 实测：当前套餐无法执行此操作），改为由云函数按白名单回显 `Access-Control-Allow-Origin`（**不使用 `*`**）；白名单＝GitHub Pages ＋ CloudBase 静态托管 ＋ 本机任意端口。
 
+### 部署后怎么访问（Day 17 补充，实测结论）
+
+| 方式 | 结果 | 说明 |
+|---|---|---|
+| 前端 `fetch` / `curl` / 任何 HTTP 客户端 | ✅ 正常 | 返回 `application/json`，形状与本文档完全一致 |
+| **浏览器地址栏直接打开接口地址** | ⚠️ 会**下载**而不是显示 | 网关给所有响应硬加 `content-disposition: attachment`，函数侧设置会被覆盖；静态托管同理（同为 `tcbgw`） |
+| 想「在浏览器里看到返回」 | ✅ 用公网核验台 | <https://xingho-vibecoding.github.io/knowledge-quest/tools/api-live.html>（GitHub Pages 不加 `attachment`）：地址栏是公网地址，页内显示接口地址 + 状态 + 原始 JSON |
+
+> 这是平台行为，不影响接口契约，也不影响前端。记录在此，免得以后有人拿接口地址在浏览器里试、以为接口坏了。
+
 ### 1. `GET /api/health` ✅ 已实现（Day 15）
 
 - 请求参数：无
@@ -130,6 +140,7 @@
 | Day 15（2026-10-03） | 建立本文档；7 个接口登记；首次定义两张表模型 | 第 3 周开工 |
 | Day 16（2026-10-04） | **契约一致性核对后修订 6 处**：① `cards` 补 `sub` 子分类字段；② `quiz_records` 补 `card_ids` 数组字段并明确两表**弱关联**；③ 新增「字段口径说明」（`id`/`source`/`local`/`created_at`/`card_ids`/`date`）；④ `POST /api/cards` 请求体补 `sub` 与「不含 id/source/created_at」；⑤ 各读接口响应字段清单补 `sub`/`card_ids`；⑥ 登记「前端只存单条最佳战绩 vs 接口写每轮一条」的差异（Day 18 处理） | 建表时拿真实数据（`data/quest-cards.json` 24 张卡全带 `sub`）与前端 `js/main.js`、`js/store.js` 的字段逐条核对，发现契约漏记；按「先改契约再改代码」的规矩回填 |
 | Day 17（2026-10-04） | ① `GET /api/cards`、`GET /api/cards/:id`、`GET /api/quiz-records` 标记 **已实现**；② 新增「服务端如何访问数据库」实测结论（pg 直连在免费版走不通 → 改用网关 HTTP API + 环境 API Key）；③ 登记 CORS 白名单方案 | 读接口上线，公网 7 项验证通过（含真库变更联动、400/404/501 错误形状）；访问方式变更属实现细节，接口形状未动 |
+| Day 17 补充（2026-10-04） | 新增「部署后怎么访问」实测结论：网关强制 `content-disposition: attachment`，浏览器直开接口地址会下载而非显示 JSON；公网可读入口改由 Pages 上的 `tools/api-live.html` 承担 | 接口与契约形状零改动，仅补访问方式说明；已回退三次无效尝试的代码 |
 
 > 核对方法：`information_schema.columns` 拉真实表结构 + `pg_constraint` 拉真实约束，与本文档字段清单逐条对齐；结论见 `docs/day16-contract-check.md`。
 

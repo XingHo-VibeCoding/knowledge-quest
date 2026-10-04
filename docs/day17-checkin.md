@@ -25,11 +25,21 @@
 | 参数非法 | — | `400 {ok:false,error:{code:"BAD_LIMIT",message:"limit 必须是 1~1000 之间的整数"}}` | ✅ |
 | 未实现接口 | POST / DELETE | `501 {code:"NOT_IMPLEMENTED",message:"…按计划在 Day 18 实现"}` | ✅ 按契约占位 |
 
+> ⚠️ **平台行为记录（实测）**：CloudBase 网关会给**所有**响应硬加 `content-disposition: attachment`，
+> 于是浏览器地址栏直接打开接口地址会变成「下载文件」而不是显示 JSON。函数侧返回 `Content-Disposition: inline`
+> 改不动它（试过让接口按 `Accept` 返回内联 HTML 页，`content-type` 确实能变成 `text/html`，但 `attachment`
+> 照旧——见第七节）。所以「在浏览器里看接口返回」这件事，改由**公网核验台**承担：
+>
+> 🔗 <https://xingho-vibecoding.github.io/knowledge-quest/tools/api-live.html>
+>
+> 地址栏就是公网地址，页面里显示**接口公网地址 + HTTP 状态 + 耗时 + 原始 JSON**（截图见第九节「截图五」）。
+
 ## 三、完成标准逐条自检
 
 | 完成标准（教材） | 状态 | 证据 |
 |---|---|---|
 | 公网打开 GET 接口返回 `{ok:true,data:[...]}` | ✅ | `kq_day17_api_live.png`（请求地址 / HTTP 200 / 条数 / 原始 JSON） |
+| 「在浏览器里看到返回」这一动作 | ✅ | 接口地址本身会触发下载（平台网关行为，见第二节说明），改由公网核验台承担：`kq_day17_api_public.png`（地址栏 = 公网地址，页内显示接口公网地址 + 200 + 原始 JSON） |
 | 记录表也有读接口 | ✅ | `GET /api/quiz-records` 返回 6 条（`count:6`） |
 | 数据来自真实数据库（改库后跟着变） | ✅ | `kq_day17_page_after_db.png`：控制台改一行 → 刷新页面，卡片文字跟着变（已改回） |
 | 前端不再只认写死的 mock | ✅ | `js/main.js` `loadFromApi()` 优先读接口，`console` 打印数据来源；本地 mock 仅作兜底 |
@@ -69,6 +79,29 @@
 
 顺带解决了跨域：免费版不允许新增「安全域名」（CLI 实测：当前套餐无法执行此操作），改为由云函数按白名单回显 `Access-Control-Allow-Origin`（**不使用 `*`**）。
 
+### 顺带踩到的一个平台坑：接口地址在浏览器里会「下载」而不是显示
+
+教材的读取检测写的是「浏览器打开 GET 接口公网地址，应看到 `{ok:true,data:[...]}`」。实测打开后，浏览器**下载了一个文件**，界面上看不到 JSON。查响应头才明白：
+
+```
+content-disposition: attachment      ← 网关硬加，函数返回什么都会被它覆盖
+content-type: application/json; charset=utf-8
+```
+
+三次尝试与结果：
+
+| 尝试 | 结果 |
+|---|---|
+| 云函数返回 `Content-Disposition: inline` | ❌ 被网关覆盖，仍是 `attachment` |
+| 让接口按 `Accept: text/html` 返回内联 HTML 视图 | 半个：`content-type` 确实变成 `text/html`，但 `attachment` **照旧** ❌ |
+| 换 CloudBase 静态托管域名（`tcloudbaseapp.com`）看是否也如此 | ❌ 一样是 `server: tcbgw` + `attachment` |
+
+结论：这是 CloudBase HTTP 访问服务的平台行为，应用层改不动。好处是**前端 `fetch` 完全不受影响**（CORS、JSON 都正常）；代价是「把接口地址贴给同学，他点开只会下载一个文件」。于是另做了一个**公网核验台**页面挂在 GitHub Pages 上（Pages 不加 `attachment`）：
+
+🔗 <https://xingho-vibecoding.github.io/knowledge-quest/tools/api-live.html>
+
+地址栏是公网地址、页内显示「接口公网地址 + HTTP 状态 + 耗时 + 原始 JSON」——群里给这个链接，点开就能看。**接口本身与契约一个字没动**；三次尝试的代码改动已全部回退，`index.js` 只留一条注释记录这件事，免得以后再踩。
+
 ### 数据「不会去」的地方（反向声明）
 
 - API Key **不会**出现在前端代码、前端请求、仓库、Git 历史里（`.env`、`cloudbaserc.local.json` 均已忽略）
@@ -93,6 +126,7 @@
 | 截图二 · 页面显示真实数据（卡片墙，地址栏 + 24 张真库卡） | `docs/screenshots/kq_day17_page_live.png` |
 | 截图三 · 真库检测：改一行数据后页面跟着变 | `docs/screenshots/kq_day17_page_after_db.png` |
 | 截图四 · 错误形状（400 + 中文人话） | `docs/screenshots/kq_day17_api_error.png` |
+| 截图五 · 公网地址直开（地址栏 = Pages 公网地址，页内 = 接口公网地址 + 200 + 原始 JSON） | `docs/screenshots/kq_day17_api_public.png` |
 | 核验台（可点按钮现场复核） | `tools/api-live.html` |
 | 数据访问层 | `cloudbase/functions/api/db.js` |
 | 入口层（路由 / 校验 / 响应形状 / CORS） | `cloudbase/functions/api/index.js` |
@@ -103,3 +137,9 @@
 - **标题**：Day 17｜第一条读取接口：GET，页面改读真库
 - **改了什么**：`cloudbase/functions/api/index.js`（新增三个 GET 路由 + 参数校验 + CORS 白名单）、`cloudbase/functions/api/server.js`（支持 async 处理器）、`js/main.js`（数据源改为优先读公网接口、失败回退 mock）、`api-contract.md`（标记已实现 + 补「服务端如何访问数据库」实测结论）
 - **加了什么**：`cloudbase/functions/api/db.js`（数据访问层）、`tools/api-live.html`（接口真库核验台）、`docs/day17-checkin.md`、`docs/screenshots/kq_day17_*.png`
+
+**补充 commit**（同一天收尾，把「公网怎么给人看」这件事补齐）
+
+- **标题**：Day 17｜补公网可读入口：核验台上线 Pages + 网关 attachment 实测记录
+- **改了什么**：`api-contract.md`（新增「部署后怎么访问」实测结论 + 变更记录）、`docs/day17-checkin.md`（第二节平台说明、第三节完成标准、第七节实测小节、第九节截图五）、`cloudbase/functions/api/index.js`（**只加一条注释**记录网关行为，三次无效尝试的代码已全部回退）
+- **加了什么**：`docs/screenshots/kq_day17_api_public.png`（地址栏 = 公网地址的接口核验截图）

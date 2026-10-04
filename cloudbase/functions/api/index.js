@@ -26,6 +26,11 @@ const REGISTERED_BUT_NOT_IMPLEMENTED = new Map([
 function json(statusCode, obj) {
   return {
     statusCode,
+    // ⚠️ Day 17 实测记录：CloudBase 网关会给**所有**响应硬加 content-disposition: attachment，
+    //    函数侧返回的 Content-Disposition / Content-Type 都改不动它（试过 json 与内联 HTML 两种，
+    //    也试过静态托管——全是 attachment）。后果：浏览器地址栏直接打开接口地址会变成「下载文件」，
+    //    看不到 JSON。所以「公网可读视图」改为 GitHub Pages 上的 tools/api-live.html
+    //    （地址栏是公网地址、页面里显示接口地址与原始返回），前端 fetch 不受影响。
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
     body: JSON.stringify(obj),
   };
