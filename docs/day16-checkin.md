@@ -84,17 +84,17 @@
 | `card_ids` | `integer[]` 而非关联表 | 本轮只有 5 张卡、且是历史快照，数组够用且查询简单（`card_ids @> ARRAY[3]`）；等要做"逐题对错明细"时再拆明细表 |
 | `id` | `serial` | 单机自用、单写入者，自增整数最短最省；不需要 UUID 的分布式唯一性 |
 
-## 七、每日一问
+## 七、每日一问：
 
 > **你的两张表分别存什么？它们靠哪个字段关联？**
 
-**`cards` 存"知识卡片"**——一个知识点一行：科目、子分类、类型（问答/跟读）、难度、正面题面、背面答案、来源（种子卡还是自己加的）、创建时间。它是这个项目的**主对象**：24 张种子卡加上以后自己往里加的卡，都属于这张表，会长期维护、会被改。
+`cards` 存**知识卡片**：科目、子分类、题面、答案，一张卡一行，是我长期维护的主对象（现在 24 张种子卡）。
 
-**`quiz_records` 存"每次闯关的成绩"**——一轮闯关一行：答对几题、共几题、这轮抽中了哪些卡、哪天做的。它是**按时间累积的记录**，只增不改。
+`quiz_records` 存**每轮闯关的成绩**：对几题、共几题、抽了哪些卡、哪天做的，只增不改。
 
-**两张表靠 `cards.id` ← `quiz_records.card_ids` 关联**：每轮闯关结束时，把抽中的 5 张卡的 id 写成一个数组存进 `card_ids`，这样就指回了具体的卡片。所以我能查出"第 3 号卡被考过几次"（`WHERE card_ids @> ARRAY[3]`），以后还能算出"哪张卡我总答错"。
+两张表靠 `cards.id` ← `quiz_records.card_ids` 关联：闯关结束就把抽中的卡 id 存成数组写进 `card_ids`，所以能反查「某张卡被考过几次」。
 
-有一处是我特意这么设计的：**这个关联刻意没有做成外键**。因为战绩是历史快照——如果哪天我删了或改了某张卡，过去的成绩不应该跟着变，所以 `card_ids` 里允许留着已不存在的 id。把"会变的卡片"和"不该变的战绩"分开存两张表，各自的约束才干净：卡片表管资料正确，战绩表管历史真实。
+不做外键是刻意的——战绩是历史快照，删改卡片不该影响过去的成绩。
 
 ## 八、截图与文件索引
 
@@ -102,6 +102,8 @@
 |---|---|
 | 截图一（主图）· 数据库自检报告：建表 / 两遍种子 / 两条 select 结果 | `docs/screenshots/kq_day16_report.png` |
 | 截图二 · 真库执行实录（`tcb db execute` 原始输出，框线对齐） | `docs/screenshots/kq_day16_terminal.png` |
+| 截图三 · 本篇打卡全文渲染图（深色阅读主题，含每日一问） | `docs/screenshots/kq_day16_checkin.png` |
+| 截图四 · 契约一致性核对报告全文渲染图（深色阅读主题） | `docs/screenshots/kq_day16_contract_check.png` |
 | 建表脚本 | [db/schema.sql](https://github.com/XingHo-VibeCoding/knowledge-quest/blob/main/db/schema.sql) |
 | 种子脚本 | [db/seed.sql](https://github.com/XingHo-VibeCoding/knowledge-quest/blob/main/db/seed.sql) |
 | 自检 SQL | [db/verify.sql](https://github.com/XingHo-VibeCoding/knowledge-quest/blob/main/db/verify.sql) |
