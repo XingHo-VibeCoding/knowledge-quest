@@ -23,10 +23,31 @@
 
 | 表 | 角色 | 字段 |
 |---|---|---|
-| `cards` | 主对象：知识卡片 | `id`（serial 主键）、`subject`（科目，text）、`type`（类型，text）、`level`（难度 1-3，int）、`front`（正面/问题，text）、`back`（背面/答案，text）、`source`（`mock` / `user`，text）、`created_at`（timestamptz） |
-| `quiz_records` | 记录：每次闯关结果 | `id`（serial 主键）、`score`（答对数，int）、`total`（总题数，int）、`date`（成绩日期，date）、`created_at`（timestamptz） |
+| `cards` | 主对象：知识卡片 | `id`（serial 主键）、`subject`（科目，text）、`sub`（子分类，text，空串=未细分）、`type`（类型，text）、`level`（难度 1-3，int）、`front`（正面/问题，text）、`back`（背面/答案，text）、`source`（`mock` / `user`，text）、`created_at`（timestamptz） |
+| `quiz_records` | 记录：每次闯关结果 | `id`（serial 主键）、`score`（答对数，int）、`total`（总题数，int）、`card_ids`（本轮抽中的卡片 id 数组，int[]）、`date`（成绩日期，date）、`created_at`（timestamptz） |
 
 前端 mock 数据 `data/quest-cards.json` 的 24 张卡即 `cards` 表的种子数据（Day 16 灌入），字段一一对应。
+
+### 两表关联（Day 16 补）
+
+`cards.id` ← `quiz_records.card_ids`（**弱关联**：数组包含，不建外键）。
+
+- 存的是「本轮抽中了哪几张卡」，因此能回答「这张卡我被考过几次、答错几次」这类问题。
+- 用弱关联而非外键的原因：战绩是**历史快照**——卡被删改（Day 22 的 DELETE）后，历史成绩不该跟着变，所以允许 `card_ids` 里出现已不存在的 id。
+- 查询示例：`SELECT * FROM quiz_records WHERE card_ids @> ARRAY[3]`（第 3 号卡的所有闯关记录）。
+
+### 字段口径说明（Day 16 补，逐字段核对产出）
+
+| 字段 | 口径 |
+|---|---|
+| `id` | **入库后一律为数据库生成的整数**。前端本机新增卡在 localStorage 里用字符串 `u<时间戳>` 作临时 id，入库时由数据库重新分配，请求体**不含** id。 |
+| `sub` | 二级分类，可为空串 `''`（表示未细分）。一级/二级分类都允许用户自定义，故用 text 而非 enum。 |
+| `source` | **由服务端写入，请求体不含该字段**：种子数据写 `mock`，用户经 `POST /api/cards` 新增写 `user`。Day 22「mock 卡不可删除」据此判断。 |
+| `local` | 前端 localStorage 用户卡上的本机标记（`true` 表示只存在本机），**不入库、不属于接口字段**。 |
+| `created_at` | 服务端生成（`now()`），请求体不含。时间为 ISO 8601 带时区（`2026-10-04T13:30:00+08:00`）。 |
+| `card_ids` | 服务端可写可不写：前端若上报本轮抽中的卡则写入，缺省为空数组 `{}`。 |
+| `date` | 用户本地日期 `YYYY-MM-DD`，不按 UTC 切日。 |
+
 
 ## 三、接口登记
 
@@ -46,20 +67,21 @@
 ### 2. `GET /api/cards` 🕐 Day 17 实现
 
 - 请求参数（query，均可选）：`subject`（科目名，精确匹配）、`q`（关键词，对 front/back 做包含匹配）、`limit`（默认 100）
-- 成功：`200 { "ok": true, "count": <n>, "data": [ { id, subject, type, level, front, back, source, created_at }, ... ] }`
+- 成功：`200 { "ok": true, "count": <n>, "data": [ { id, subject, sub, type, level, front, back, source, created_at }, ... ] }`
 - 错误：`400 { ok:false, error:{ code:"BAD_LIMIT", message:"limit 必须是正整数" } }`；`500 { ..., code:"DB_ERROR" }`
 - 空数据不报错：`count: 0, data: []`（前端已有「没有找到相关内容」空态承接）
 
 ### 3. `GET /api/cards/:id` 🕐 Day 17 实现
 
 - 请求参数：路径参数 `id`（正整数）
-- 成功：`200 { "ok": true, "data": { id, subject, type, level, front, back, source, created_at } }`
+- 成功：`200 { "ok": true, "data": { id, subject, sub, type, level, front, back, source, created_at } }`
 - 错误：`400 { code:"BAD_ID" }`（id 非正整数）；`404 { code:"CARD_NOT_FOUND", message:"卡片不存在" }`（前端详情页边界态承接）
 
 ### 4. `POST /api/cards` 🕐 Day 18 实现
 
-- 请求体（JSON）：`{ subject, type, level, front, back }` —— 均必填；`level` 为 1-3 整数；`subject`/`type` ≤ 8 字；`front` ≤ 200 字；`back` ≤ 500 字
-- 成功：`201 { "ok": true, "data": { id, ..., source: "user", created_at } }`
+- 请求体（JSON）：`{ subject, sub, type, level, front, back }` —— `sub`（子分类）可选、缺省为空串，其余均必填；`level` 为 1-3 整数；`subject`/`type` ≤ 8 字；`sub` ≤ 12 字；`front` ≤ 200 字；`back` ≤ 500 字
+- 请求体**不含** `id` / `source` / `created_at`（三者由服务端生成，见「字段口径说明」）
+- 成功：`201 { "ok": true, "data": { id, subject, sub, type, level, front, back, source: "user", created_at } }`
 - 错误：`400 { code:"VALIDATION_ERROR", message:"缺字段/超长/level 越界" }`；`500 { code:"DB_ERROR" }`
 
 ### 5. `DELETE /api/cards/:id` 🔮 Day 22 实现（第 4 周）
@@ -71,13 +93,14 @@
 ### 6. `GET /api/quiz-records` 🕐 Day 17 实现
 
 - 请求参数：`limit`（默认 10，按 date 倒序）
-- 成功：`200 { "ok": true, "count": <n>, "data": [ { id, score, total, date, created_at }, ... ] }`
+- 成功：`200 { "ok": true, "count": <n>, "data": [ { id, score, total, card_ids, date, created_at }, ... ] }`
 - 错误：同通用错误形状
 
 ### 7. `POST /api/quiz-records` 🕐 Day 18 实现
 
-- 请求体（JSON）：`{ score, total, date }` —— 均必填；`0 ≤ score ≤ total ≤ 100`；`date` 为 `YYYY-MM-DD`
-- 成功：`201 { "ok": true, "data": { id, score, total, date, created_at } }`
+- 请求体（JSON）：`{ score, total, card_ids?, date }` —— `score`/`total`/`date` 必填；`card_ids` 可选（本轮抽中的卡片 id 数组，缺省为空数组）；`0 ≤ score ≤ total ≤ 100`；`date` 为 `YYYY-MM-DD`
+- 与前端现状的差异（Day 18 处理）：前端 localStorage 现在只存**单条最佳战绩**（`kq_best_score`），而本接口写的是**每轮一条历史记录**。Day 18 接上接口后，前端改为每轮闯关结束都 POST 一条，最佳战绩由 `GET /api/quiz-records` 取最大值展示。
+- 成功：`201 { "ok": true, "data": { id, score, total, card_ids, date, created_at } }`
 - 错误：`400 { code:"VALIDATION_ERROR" }`
 
 ## 四、明确不做（第 3 周范围外）
@@ -85,3 +108,13 @@
 - 用户账号/登录（本项目自用数据，不做多用户隔离）
 - 卡片修改（PATCH）——如需要列入第 4 周
 - 定时任务、外部数据源接入
+
+## 五、变更记录
+
+| 日期 | 变更 | 原因 |
+|---|---|---|
+| Day 15（2026-10-03） | 建立本文档；7 个接口登记；首次定义两张表模型 | 第 3 周开工 |
+| Day 16（2026-10-04） | **契约一致性核对后修订 6 处**：① `cards` 补 `sub` 子分类字段；② `quiz_records` 补 `card_ids` 数组字段并明确两表**弱关联**；③ 新增「字段口径说明」（`id`/`source`/`local`/`created_at`/`card_ids`/`date`）；④ `POST /api/cards` 请求体补 `sub` 与「不含 id/source/created_at」；⑤ 各读接口响应字段清单补 `sub`/`card_ids`；⑥ 登记「前端只存单条最佳战绩 vs 接口写每轮一条」的差异（Day 18 处理） | 建表时拿真实数据（`data/quest-cards.json` 24 张卡全带 `sub`）与前端 `js/main.js`、`js/store.js` 的字段逐条核对，发现契约漏记；按「先改契约再改代码」的规矩回填 |
+
+> 核对方法：`information_schema.columns` 拉真实表结构 + `pg_constraint` 拉真实约束，与本文档字段清单逐条对齐；结论见 `docs/day16-contract-check.md`。
+
