@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>接口写入核验台 · knowledge-quest</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #f5f4fb; color: #241f3a;
+         font: 14px/1.7 "Segoe UI", "Microsoft YaHei", sans-serif; padding: 18px 28px 24px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .sub { color: #5c5680; font-size: 13px; margin-bottom: 12px; max-width: 900px; }
+  .base { background: #fff; border: 1px solid #e2dff0; border-radius: 10px; padding: 9px 14px;
+          font: 12.5px Consolas, monospace; color: #3b2f6b; margin-bottom: 10px; word-break: break-all; }
+  .panel { background: #fff; border: 1px solid #e2dff0; border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; }
+  .label { font-size: 13px; color: #5c5680; margin-bottom: 5px; }
+  textarea { width: 100%; height: 48px; resize: vertical; border: 1px solid #ddd8f0; border-radius: 8px;
+             padding: 6px 11px; font: 12px/1.5 Consolas, monospace; color: #241f3a; background: #fbfaff; }
+  .btns { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 9px; }
+  button { background: #6b4ee6; color: #fff; border: 0; border-radius: 999px; padding: 8px 15px;
+           font-size: 13px; cursor: pointer; }
+  button:hover { background: #5a3fd4; }
+  button.warn { background: #b07d2b; }
+  button.err { background: #a8484f; }
+  .row { font: 12.5px Consolas, monospace; color: #4b4468; margin-bottom: 4px; word-break: break-all; }
+  .row b { color: #241f3a; }
+  .ok { color: #1f7a4d; font-weight: 700; }
+  .bad { color: #b03a3a; font-weight: 700; }
+  pre { margin: 8px 0 0; background: #1c1c22; color: #dfe3ee; padding: 12px 14px; border-radius: 8px;
+        font: 12px/1.5 Consolas, monospace; max-height: 520px; overflow: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+  <h1>接口写入核验台</h1>
+  <div class="sub">点按钮就往线上数据库<b>真写一条</b>：请求地址、状态、耗时、库中行数、原始返回全部照实贴出。</div>
+  <div class="base">接口基址：<span id="base"></span></div>
+
+  <div class="panel">
+    <div class="label">请求体（POST /api/cards，可以直接在框里改）：</div>
+    <textarea id="body" spellcheck="false"></textarea>
+    <div class="btns">
+      <button id="btnOk">① 发送正常请求</button>
+      <button id="btnDup" class="warn">② 原样再发一次（测防重复）</button>
+      <button id="btnBad" class="err">③ 删掉题面再发（测校验）</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">请求地址：<b id="reqUrl">—</b></div>
+    <div class="row">HTTP 状态：<span id="status">—</span> ｜ 耗时：<span id="cost">—</span></div>
+    <div class="row">库中卡片行数：<span id="rows">—</span></div>
+    <div class="row">结论：<b id="verdict">—</b></div>
+    <pre id="out">点上面的按钮开始核验。</pre>
+  </div>
+
+<script>
+  var API = 'https://zgr202511108235qr-d2dkj33964b842.service.tcloudbase.com/api';
+  document.getElementById('base').textContent = API;
+
+  var BODY = {
+    subject: '口语',
+    sub: '会议',
+    type: '句子',
+    level: 2,
+    front: '会上没听清对方的话，请人再说一遍，英语怎么说？',
+    back: 'Sorry, could you say that again? / Could you repeat the last part, please?'
+  };
+  var ta = document.getElementById('body');
+  ta.value = JSON.stringify(BODY, null, 2);
+
+  function countCards() {
+    return fetch(API + '/cards?limit=1000', { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (b) { return b && typeof b.count === 'number' ? b.count : null; })
+      .catch(function () { return null; });
+  }
+
+  function setRows(text) { document.getElementById('rows').textContent = text; }
+
+  // mode: 'normal' 原样发 ｜ 'nofront' 删掉题面再发
+  function send(mode) {
+    var obj;
+    try { obj = JSON.parse(ta.value); }
+    catch (e) { document.getElementById('verdict').textContent = '请求体不是合法 JSON，先改一下框里的内容'; return; }
+
+    if (mode === 'nofront') delete obj.front;
+
+    document.getElementById('reqUrl').textContent = API + '/cards';
+    document.getElementById('status').textContent = '请求中…';
+    document.getElementById('cost').textContent = '—';
+    document.getElementById('verdict').textContent = '—';
+    document.getElementById('out').textContent = '...';
+
+    var t0 = Date.now();
+    fetch(API + '/cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(obj)
+    })
+      .then(function (r) { return r.text().then(function (t) { return { status: r.status, txt: t }; }); })
+      .then(function (res) {
+        document.getElementById('cost').textContent = (Date.now() - t0) + ' ms';
+        document.getElementById('status').innerHTML =
+          '<span class="' + (res.status >= 200 && res.status < 300 ? 'ok' : 'bad') + '">' + res.status + '</span>';
+
+        var body = null;
+        try { body = JSON.parse(res.txt); } catch (e) { body = null; }
+        document.getElementById('out').textContent = JSON.stringify(body || res.txt, null, 2);
+
+        var v = document.getElementById('verdict');
+        if (res.status === 201 && body && body.data) {
+          v.innerHTML = '写入成功 —— 库里多了一行（新 id = <b>' + body.data.id + '</b>，source = ' + body.data.source + '）';
+        } else if (res.status === 409) {
+          v.innerHTML = '被拒绝（防重复生效）——' + (body && body.error ? body.error.message : '');
+        } else if (res.status === 400) {
+          v.innerHTML = '被拒绝（校验生效）——' + (body && body.error ? body.error.message : '');
+        } else {
+          v.innerHTML = '未预期的结果：' + res.status;
+        }
+        return countCards();
+      })
+      .then(function (n) {
+        setRows(n === null ? '读取失败' : n + ' 行');
+        if (location.hash.indexOf('auto') >= 0) window.scrollTo(0, 0);   // 截图用：结果出来后回到顶部
+      })
+      .catch(function (e) {
+        document.getElementById('status').innerHTML = '<span class="bad">请求失败</span>';
+        document.getElementById('out').textContent = String(e);
+      });
+  }
+
+  document.getElementById('btnOk').addEventListener('click', function () { send('normal'); });
+  document.getElementById('btnDup').addEventListener('click', function () { send('normal'); });
+  document.getElementById('btnBad').addEventListener('click', function () { send('nofront'); });
+
+  // 只显示行数，不占地方
+  countCards().then(function (n) { setRows(n === null ? '—' : n + ' 行'); });
+
+  // #auto 打开即自动发一次（截图用），#auto-dup 自动发两次（第二次看防重复）
+  if (location.hash.indexOf('auto') >= 0) {
+    setTimeout(function () {
+      send('normal');
+      if (location.hash.indexOf('auto-dup') >= 0) {
+        setTimeout(function () { send('normal'); }, 2500);
+      }
+    }, 600);
+  }
+</script>
+</body>
+</html>

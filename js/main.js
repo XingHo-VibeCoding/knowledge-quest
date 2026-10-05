@@ -526,7 +526,11 @@ function applyRoute(route) {
   else if (demoState) showState(demoState);
 }
 
-/* ＝＝＝ 添加卡片（Day 9）：存 localStorage，刷新不丢 ＝＝＝ */
+/* ＝＝＝ 添加卡片（Day 18 起：写进真库）＝＝＝
+ * Day 9~17 是「存 localStorage」；今天改成先 POST /api/cards 写进数据库，
+ * 用数据库分配的 id 放进列表；接口不可用时回退本机存储（页面不能因为后端问题就用不了）。
+ * 接口因为「重复 / 不合规」明确拒绝时，照实告诉用户、不偷偷存本地——那样会把问题藏起来。
+ */
 function toggleAddPanel(force) {
   const show = force !== undefined ? force : els.addPanel.classList.contains('hidden');
   els.addPanel.classList.toggle('hidden', !show);
@@ -549,24 +553,69 @@ function saveCard() {
   if (!categories[subject]) categories[subject] = [];
   if (sub && categories[subject].indexOf(sub) < 0) categories[subject].push(sub);
   KQStore.saveCategories(categories);
-  const card = {
-    id: 'u' + Date.now(),
-    subject: subject, sub: sub || '', type: '问答', level: 1,
-    front: front, back: back, local: true
-  };
-  if (KQStore.addCard(card)) {
-    cards.unshift(card); // 本地立即见效，不用刷新
-    els.fFront.value = '';
-    els.fBack.value = '';
-    els.formMsg.textContent = '已存入卡片库 ✓（保存在本机浏览器，刷新不丢）';
-    els.formMsg.className = 'form-msg ok';
-    renderFilters(currentSubjects());
-    render();
-    updateStats();
-  } else {
-    els.formMsg.textContent = '保存失败：浏览器本地存储不可用';
-    els.formMsg.className = 'form-msg warn';
-  }
+
+  // 请求体按契约：不含 id / source / created_at（都由服务端生成）
+  const payload = { subject: subject, sub: sub || '', type: '问答', level: 1, front: front, back: back };
+  els.saveCardBtn.disabled = true;
+  els.formMsg.textContent = '正在写入数据库…';
+  els.formMsg.className = 'form-msg';
+
+  fetch(KQ_API_BASE + '/cards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload)
+  })
+    .then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (body) {
+        return { status: r.status, body: body };
+      });
+    })
+    .then(function (res) {
+      const err = (res.body && res.body.error) || {};
+      if (res.status === 201 && res.body && res.body.ok === true && res.body.data) {
+        return { from: 'api', card: res.body.data };
+      }
+      // 409 重复 / 400 不合规：都是「按规则不该写」，交给用户改，不走回退
+      if (res.status === 409 || res.status === 400) {
+        return { from: 'rejected', message: err.message || ('接口拒绝了这次写入（HTTP ' + res.status + '）') };
+      }
+      throw new Error('HTTP ' + res.status);
+    })
+    .catch(function (e) {
+      // 网络不通 / 服务端异常 → 回退本机存储，保证「添加卡片」这个功能本身不瘫
+      const local = {
+        id: 'u' + Date.now(), subject: subject, sub: sub || '',
+        type: '问答', level: 1, front: front, back: back, local: true
+      };
+      KQStore.addCard(local);
+      return { from: 'local', card: local, message: e.message };
+    })
+    .then(function (res) {
+      els.saveCardBtn.disabled = false;
+
+      if (res.from === 'rejected') {
+        els.formMsg.textContent = res.message;
+        els.formMsg.className = 'form-msg warn';
+        return;
+      }
+
+      const c = res.card;
+      c.local = (res.from === 'local');
+      cards.unshift(c); // 本地立即见效，不用刷新
+      els.fFront.value = '';
+      els.fBack.value = '';
+      if (res.from === 'api') {
+        els.formMsg.textContent = '已写入数据库 ✓（数据库分配的 id = ' + c.id + '，刷新后依然在）';
+        els.formMsg.className = 'form-msg ok';
+        console.log('[kq] POST /api/cards 成功，新行：' + JSON.stringify(c));
+      } else {
+        els.formMsg.textContent = '接口暂时不可用，已存到本机（' + res.message + '）';
+        els.formMsg.className = 'form-msg warn';
+      }
+      renderFilters(currentSubjects());
+      render();
+      updateStats();
+    });
 }
 
 /* ＝＝＝ 数据来源（Day 17 起）＝＝＝

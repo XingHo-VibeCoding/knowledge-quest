@@ -12,7 +12,7 @@
 | 健康检查（部署链路验证） | `GET /api/health` |
 | 浏览卡片列表（含科目筛选、关键词搜索） | `GET /api/cards`（支持 `subject`、`q` 查询参数） |
 | 打开卡片详情页（`#/card/:id`，含同科目相关卡） | `GET /api/cards/:id` |
-| 「＋ 添加卡片」录入新卡（现在存 localStorage） | `POST /api/cards` |
+| 「＋ 添加卡片」录入新卡（Day 18 起直接写进真库） | `POST /api/cards` ✅ |
 | 删除自存卡（现在删 localStorage） | `DELETE /api/cards/:id` |
 | 查看闯关最佳战绩（现在存 localStorage） | `GET /api/quiz-records` |
 | 闯关结束后写入战绩（现在只存本机） | `POST /api/quiz-records` |
@@ -101,12 +101,14 @@
 - 成功：`200 { "ok": true, "data": { id, subject, sub, type, level, front, back, source, created_at } }`
 - 错误：`400 { code:"BAD_ID" }`（id 非正整数）；`404 { code:"CARD_NOT_FOUND", message:"卡片不存在" }`（前端详情页边界态承接）
 
-### 4. `POST /api/cards` 🕐 Day 18 实现
+### 4. `POST /api/cards` ✅ 已实现（Day 18）
 
 - 请求体（JSON）：`{ subject, sub, type, level, front, back }` —— `sub`（子分类）可选、缺省为空串，其余均必填；`level` 为 1-3 整数；`subject`/`type` ≤ 8 字；`sub` ≤ 12 字；`front` ≤ 200 字；`back` ≤ 500 字
 - 请求体**不含** `id` / `source` / `created_at`（三者由服务端生成，见「字段口径说明」）
-- 成功：`201 { "ok": true, "data": { id, subject, sub, type, level, front, back, source: "user", created_at } }`
-- 错误：`400 { code:"VALIDATION_ERROR", message:"缺字段/超长/level 越界" }`；`500 { code:"DB_ERROR" }`
+- **防重复判定（Day 18 定）**：同一 `subject` 下、`front`（去掉首尾空白后）完全相同的卡只保留一张。命中时返回 `409`，不写入。
+- 校验口径（Day 18 实现）：长度按 **Unicode 码点**计（中文一个字算 1）；错误信息一律中文，**说明缺了哪个字段 / 哪个字段不合规**，不返回堆栈。
+- 成功：`201 { "ok": true, "data": { id, subject, sub, type, level, front, back, source: "user", created_at } }` —— 返回的是**数据库写入后的真实行**（含库分配的 `id` 与库生成的 `created_at`）
+- 错误：`400 { code:"VALIDATION_ERROR", message:"缺少必填字段「题面」" ｜ "「科目」太长了：最多 8 个字，现在有 9 个字" ｜ "「难度」要在 1~3 之间，现在填的是 5" }`；`409 { code:"DUPLICATE_CARD", message:"这张卡已经存在了（口语 · id 29）：同一科目下题面相同的卡只存一张" }`；`500 { code:"DB_ERROR" }`
 
 ### 5. `DELETE /api/cards/:id` 🔮 Day 22 实现（第 4 周）
 
@@ -120,12 +122,13 @@
 - 成功：`200 { "ok": true, "count": <n>, "data": [ { id, score, total, card_ids, date, created_at }, ... ] }`
 - 错误：同通用错误形状
 
-### 7. `POST /api/quiz-records` 🕐 Day 18 实现
+### 7. `POST /api/quiz-records` ✅ 已实现（Day 18）
 
 - 请求体（JSON）：`{ score, total, card_ids?, date }` —— `score`/`total`/`date` 必填；`card_ids` 可选（本轮抽中的卡片 id 数组，缺省为空数组）；`0 ≤ score ≤ total ≤ 100`；`date` 为 `YYYY-MM-DD`
-- 与前端现状的差异（Day 18 处理）：前端 localStorage 现在只存**单条最佳战绩**（`kq_best_score`），而本接口写的是**每轮一条历史记录**。Day 18 接上接口后，前端改为每轮闯关结束都 POST 一条，最佳战绩由 `GET /api/quiz-records` 取最大值展示。
+- **防重复判定（Day 18 定）**：同一天 + 同分数 + 同题数 + **同一批卡 id**（顺序也一致）= 同一条战绩，只记一次（对应打卡示例里「同一天同一计划项不重复打卡」）。命中时返回 `409`。
 - 成功：`201 { "ok": true, "data": { id, score, total, card_ids, date, created_at } }`
-- 错误：`400 { code:"VALIDATION_ERROR" }`
+- 错误：`400 { code:"VALIDATION_ERROR", message:"缺少必填字段「日期」" ｜ "「日期」要写成 YYYY-MM-DD 的样子，例如 2026-10-05，现在收到的是「2026/10/05」" ｜ "答对数不能大于总题数（score=9 大于 total=5）" ｜ "「抽中的卡 id」里出现了不是正整数的值：-2" }`；`409 { code:"DUPLICATE_RECORD" }`
+- **前端接线状态（Day 18）**：接口已可用，但**前端还没接**——闯关页目前仍只把最佳战绩写在本机（`kq_best_score`）。改动涉及「每轮结束 POST 一条 + 最佳战绩改由 `GET /api/quiz-records` 取最大值」，和 Day 18 主任务（写接口本身）不是一回事，留到前端收敛那天一并做，免得两件事混在一次提交里说不清。
 
 ## 四、明确不做（第 3 周范围外）
 
@@ -141,6 +144,7 @@
 | Day 16（2026-10-04） | **契约一致性核对后修订 6 处**：① `cards` 补 `sub` 子分类字段；② `quiz_records` 补 `card_ids` 数组字段并明确两表**弱关联**；③ 新增「字段口径说明」（`id`/`source`/`local`/`created_at`/`card_ids`/`date`）；④ `POST /api/cards` 请求体补 `sub` 与「不含 id/source/created_at」；⑤ 各读接口响应字段清单补 `sub`/`card_ids`；⑥ 登记「前端只存单条最佳战绩 vs 接口写每轮一条」的差异（Day 18 处理） | 建表时拿真实数据（`data/quest-cards.json` 24 张卡全带 `sub`）与前端 `js/main.js`、`js/store.js` 的字段逐条核对，发现契约漏记；按「先改契约再改代码」的规矩回填 |
 | Day 17（2026-10-04） | ① `GET /api/cards`、`GET /api/cards/:id`、`GET /api/quiz-records` 标记 **已实现**；② 新增「服务端如何访问数据库」实测结论（pg 直连在免费版走不通 → 改用网关 HTTP API + 环境 API Key）；③ 登记 CORS 白名单方案 | 读接口上线，公网 7 项验证通过（含真库变更联动、400/404/501 错误形状）；访问方式变更属实现细节，接口形状未动 |
 | Day 17 补充（2026-10-04） | 新增「部署后怎么访问」实测结论：网关强制 `content-disposition: attachment`，浏览器直开接口地址会下载而非显示 JSON；公网可读入口改由 Pages 上的 `tools/api-live.html` 承担 | 接口与契约形状零改动，仅补访问方式说明；已回退三次无效尝试的代码 |
+| Day 18（2026-10-05） | ① `POST /api/cards`、`POST /api/quiz-records` 标记 **已实现**；② 两个接口各补「防重复判定标准」与 `409` 错误码；③ 明确校验口径（长度按码点计、错误一律中文且说明缺了哪个字段、不返堆栈）；④ 第一节对照表把「＋ 添加卡片」的备注从「存 localStorage」改为写进真库；⑤ 登记「战绩接口已实现但前端尚未接」的现状 | 写入接口上线，公网 5 项检测通过（写入 201 / 防重复 409 / 校验 400 中文 / GET 读回闭环 / 行数 24→25→25）；防重复与校验口径属**接口行为**的新增约定，按「先改契约再改代码」的规矩登记 |
 
 > 核对方法：`information_schema.columns` 拉真实表结构 + `pg_constraint` 拉真实约束，与本文档字段清单逐条对齐；结论见 `docs/day16-contract-check.md`。
 

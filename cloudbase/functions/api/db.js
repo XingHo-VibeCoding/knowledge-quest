@@ -28,26 +28,42 @@ const FIELDS = {
   quiz_records: 'id,score,total,card_ids,date,created_at',
 };
 
-/* ＝＝＝ 底层：向网关发一次 GET 请求 ＝＝＝ */
+/* ＝＝＝ 底层：向网关发一次请求（Day 17 只读；Day 18 起支持写入） ＝＝＝
+ * opt = { method, body, prefer, timeout }
+ *   method  默认 GET
+ *   body    写入时的 JSON 请求体（对象），自动序列化并补 Content-Length
+ *   prefer  写入后要拿回「刚插入的那一行」，靠 `Prefer: return=representation`
+ */
 
-function request(path, timeout = 8000) {
+function request(path, opt) {
+  opt = opt || {};
+  const method = opt.method || 'GET';
+  const payload = (opt.body === undefined || opt.body === null) ? null : JSON.stringify(opt.body);
+
   return new Promise(function (resolve, reject) {
     if (!API_KEY) {
       reject(new Error('缺少 CLOUDBASE_API_KEY 环境变量（部署时注入，见 docs/day17-checkin.md）'));
       return;
     }
     const u = new URL(GATEWAY + path);
+    const headers = {
+      Authorization: 'Bearer ' + API_KEY,
+      Accept: 'application/json',
+    };
+    if (payload !== null) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(payload);
+    }
+    if (opt.prefer) headers['Prefer'] = opt.prefer;
+
     const req = https.request(
       {
         hostname: u.hostname,
         port: 443,
         path: u.pathname + u.search,
-        method: 'GET',
-        headers: {
-          Authorization: 'Bearer ' + API_KEY,
-          Accept: 'application/json',
-        },
-        timeout: timeout,
+        method: method,
+        headers: headers,
+        timeout: opt.timeout || 8000,
       },
       function (res) {
         let data = '';
@@ -64,6 +80,7 @@ function request(path, timeout = 8000) {
     );
     req.on('timeout', function () { req.destroy(); reject(new Error('数据库请求超时')); });
     req.on('error', function (e) { reject(e); });
+    if (payload !== null) req.write(payload);
     req.end();
   });
 }
@@ -109,8 +126,84 @@ async function listQuizRecords(opt) {
   return request('/v1/rdb/rest/quiz_records?' + qs(params));
 }
 
+/* ＝＝＝ 写入（Day 18 新增）＝＝＝
+ * 写入比读取多两件事，都在这一层留位置：
+ *   ① 防重复——先查（findXxx）再写（createXxx），判定标准写在 api-contract.md 里；
+ *   ② 拿回新行——PostgREST 靠 `Prefer: return=representation` 才回传插入结果，
+ *      这样接口可以把「库里真实生成的 id / created_at」原样返回给前端。
+ * 注意：source 写死 'user'、created_at 由库默认值生成，请求体里不接受这两个字段（契约「字段口径说明」）。
+ */
+
+async function createCard(input) {
+  const rows = await request('/v1/rdb/rest/cards?select=' + FIELDS.cards, {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: {
+      subject: input.subject,
+      sub: input.sub || '',
+      type: input.type,
+      level: input.level,
+      front: input.front,
+      back: input.back,
+      source: 'user',
+    },
+  });
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+/* 防重复用：同科目 + 同题面视为同一张卡（题面去掉首尾空白后比较，见契约 4. 的判定标准） */
+async function findCardBySubjectFront(subject, front) {
+  const rows = await request('/v1/rdb/rest/cards?' + qs({
+    select: 'id,subject,front',
+    subject: 'eq.' + lit(subject),
+    front: 'eq.' + lit(front),
+    limit: '1',
+  }));
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+async function createQuizRecord(input) {
+  const rows = await request('/v1/rdb/rest/quiz_records?select=' + FIELDS.quiz_records, {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: {
+      score: input.score,
+      total: input.total,
+      card_ids: input.card_ids || [],
+      date: input.date,
+    },
+  });
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+/* 防重复用：同一天 + 同分数 + 同题数 + 同一批卡 = 同一条战绩。
+ * card_ids 是数组，数组相等的过滤语法不够直观，这里先取当天候选（数量很小），再在内存里逐项比对，行为可控。 */
+async function findDuplicateRecord(date, score, total, cardIds) {
+  const rows = await request('/v1/rdb/rest/quiz_records?' + qs({
+    select: 'id,score,total,card_ids,date',
+    date: 'eq.' + lit(date),
+    score: 'eq.' + score,
+    total: 'eq.' + total,
+    limit: '50',
+  }));
+  const want = Array.isArray(cardIds) ? cardIds : [];
+  const sameIds = function (a, b) {
+    if (!Array.isArray(a) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (Number(a[i]) !== Number(b[i])) return false;
+    return true;
+  };
+  for (let i = 0; i < rows.length; i++) {
+    if (sameIds(rows[i].card_ids, want)) return rows[i];
+  }
+  return null;
+}
+
 module.exports = {
   listCards: listCards,
   getCardById: getCardById,
   listQuizRecords: listQuizRecords,
+  createCard: createCard,
+  findCardBySubjectFront: findCardBySubjectFront,
+  createQuizRecord: createQuizRecord,
+  findDuplicateRecord: findDuplicateRecord,
 };
