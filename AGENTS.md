@@ -31,6 +31,12 @@
 6. **当天只做当天任务**：每天只处理当天任务清单里的内容，学员没说「进入下一板块」就不越界。（Day 8 自原项目规则继承）
 7. **规则只增不改不删**：追加新规则必须注明日期与 Day N；已生效规则只能以新规则覆盖说明。（Day 8 继承）
 8. **推送必须验证**：推送完成后核对远程与本地一致（提交 SHA / 文件清单），不一致即停并排查。（Day 8 继承）
+9. **接口地址唯一收敛点**（Day 20 新增）：前端任何页面不得自己写死接口地址，一律引用 `js/config.js` 的 `KQ_CONFIG`；
+   换地址只改这一个文件。（理由：同一份代码同时挂在 GitHub Pages 与 CloudBase 静态托管两个域名下，写死必然漏改。）
+10. **页面必须自证数据来源**（Day 20 新增）：页面要么显示数据来源与最后更新时间，要么显式报错；
+   **禁止「接口失败就静默退回本地文件」**——那样页面看着正常，人却在看假数据。
+11. **跨域不许用 `*`**（Day 20 新增）：云函数侧按白名单回显 `Access-Control-Allow-Origin`，
+   白名单只放 GitHub Pages、CloudBase 静态托管与本机调试三个来源。接口有写能力（POST），通配符等于把写权限交出去。
 
 ## 五、目录结构约定
 
@@ -40,10 +46,13 @@ knowledge-quest/
 ├── index.html           # 卡片墙（Day 8）+ 闯关（Day 9）+ 卡片详情（Day 13）
 ├── css/style.css        # 样式（Day 9 起：--ink-* 颜色 token 约束）
 ├── js/components.js     # 可复用知识卡片组件
+├── js/config.js         # ★ 全站唯一接口配置点（Day 20）：KQ_CONFIG.API_BASE + 构建标记
+├── js/gallery.js        # 展览模式（Day 9）
 ├── js/main.js           # 页面逻辑（状态调度、路由分发、添加卡片）
 ├── js/quiz.js           # 闯关模式（Day 9）
 ├── js/router.js         # 极简哈希路由：#/wall / #/quiz / #/card/<id>（Day 13）
 ├── js/store.js          # localStorage 持久化（Day 9）
+├── tools/checkup.html   # 云端数据检查台（Day 20）：健康 / 真数据 / 写入测试 / 请求去向
 ├── api-contract.md      # 接口契约（第 3 周唯一仲裁物，Day 15 建）
 ├── cloudbase/
 │   └── functions/api/   # CloudBase 云函数（Day 15 建，Day 19 分三层）
@@ -52,7 +61,7 @@ knowledge-quest/
 │       ├── repositories/         # 数据访问层：cardsRepository.js · quizRecordsRepository.js（查询只在这里）
 │       └── lib/gateway.js        # 传输层：全项目唯一发 HTTP 的地方
 │   （Day 19 前的 db.js 已拆进上面三层，不再存在）
-├── data/quest-cards.json# mock 卡片数据（24 张，Day 16 将灌入 cards 表作种子）
+├── data/quest-cards.json# 种子卡片数据（Day 16 已灌入 cards 表；Day 20 起页面不再读它，只留档）
 ├── .workbuddy/skills/kq-frontend-audit/  # 项目内可复用 Skill（Day 12）：SKILL.md + 对比度/可访问性脚本 + 调用记录
 └── docs/                # 截图与文档（按需）
 ```
