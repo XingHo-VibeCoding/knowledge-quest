@@ -46,7 +46,12 @@ knowledge-quest/
 ├── js/store.js          # localStorage 持久化（Day 9）
 ├── api-contract.md      # 接口契约（第 3 周唯一仲裁物，Day 15 建）
 ├── cloudbase/
-│   └── functions/api/   # CloudBase 云函数（Day 15：GET /api/health；Day 16-22 按契约补齐）
+│   └── functions/api/   # CloudBase 云函数（Day 15 建，Day 19 分三层）
+│       ├── index.js              # 入口层：路由 / 状态码 / 响应形状 / CORS / 日志（176 行）
+│       ├── services/             # 业务层：validate.js · cardsService.js · quizRecordsService.js（校验与防重复）
+│       ├── repositories/         # 数据访问层：cardsRepository.js · quizRecordsRepository.js（查询只在这里）
+│       └── lib/gateway.js        # 传输层：全项目唯一发 HTTP 的地方
+│   （Day 19 前的 db.js 已拆进上面三层，不再存在）
 ├── data/quest-cards.json# mock 卡片数据（24 张，Day 16 将灌入 cards 表作种子）
 ├── .workbuddy/skills/kq-frontend-audit/  # 项目内可复用 Skill（Day 12）：SKILL.md + 对比度/可访问性脚本 + 调用记录
 └── docs/                # 截图与文档（按需）

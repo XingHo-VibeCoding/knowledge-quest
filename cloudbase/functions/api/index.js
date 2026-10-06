@@ -1,19 +1,28 @@
 /**
- * knowledge-quest 云函数（CloudBase HTTP 云接入）
+ * knowledge-quest 云函数（CloudBase HTTP 云接入）— 入口层
  *
  * Day 15：GET /api/health —— 不连数据库、不写业务，最小可部署。
  * Day 17：GET /api/cards、GET /api/cards/:id、GET /api/quiz-records —— 接真库的读接口。
  * Day 18：POST /api/cards、POST /api/quiz-records —— 第一个业务写入接口：校验 → 防重复 → 写库 → 读回。
- * 其余接口仍按 api-contract.md 登记占位，未实现的一律 501，证明「契约先于实现」。
+ * Day 19：分层重构——本文件瘦身为纯入口层，数据库代码拆进 repositories/，业务规则拆进 services/。
+ *         重构只「搬家」不「添家具」：路由、状态码、响应形状、报错文案逐字节未变（31 条快照比对通过）。
  *
- * 分层：入口层（本文件）只负责「接请求 → 校验 → 调数据层 → 返响应」；
- *       所有查询与写入都在 db.js 里（Day 19 会在此基础上正式拆成 repository 并跑回归）。
+ * 【三层各管什么】Day 19
+ *   入口层（本文件）        HTTP：路由分发、path 归一化、状态码与响应形状、CORS、服务端日志
+ *   业务层（services/）     规则：必填与长度、分数与题数的关系、防重复怎么判、查不到算不算错
+ *   数据访问层（repositories/） 数据：查哪张表、按什么条件、怎么写入并拿回新行
+ *   另有 lib/gateway.js 作为传输层（唯一发 HTTP 的地方）。
+ *
+ * 【为什么接口里不许写查询】
+ *   查询散在接口里，加一个接口就抄一遍；改表字段要改 N 处，漏一处就静默出错。
+ *   收进 repository 后：改字段只改一个文件，接口只表达「我调用了什么业务能力」。
  *
  * 云接入 event 形状：{ path, httpMethod, headers, queryStringParameters, body, isBase64Encoded, ... }
  * 返回形状：{ statusCode, headers, body }
  */
 
-const db = require('./db.js');
+const cardsService = require('./services/cardsService.js');
+const quizRecordsService = require('./services/quizRecordsService.js');
 
 const SERVICE = 'knowledge-quest';
 
@@ -21,6 +30,8 @@ const SERVICE = 'knowledge-quest';
 const REGISTERED_BUT_NOT_IMPLEMENTED = new Map([
   ['DELETE /api/cards', 'Day 22'],
 ]);
+
+/* ＝＝＝ 响应形状（统一 { ok, data, error }）＝＝＝ */
 
 function json(statusCode, obj) {
   return {
@@ -37,6 +48,15 @@ function json(statusCode, obj) {
 
 function fail(statusCode, code, message) {
   return json(statusCode, { ok: false, error: { code: code, message: message } });
+}
+
+/* 把业务层的返回翻译成 HTTP 响应：
+ *   成功 { ok:true, data } → 由调用方给定成功状态码（200/201）与附加字段（如 count）
+ *   失败 { ok:false, status, code, message } → 统一包成 { ok:false, error:{code,message} }
+ */
+function respond(r, successStatus, extra) {
+  if (!r.ok) return fail(r.status, r.code, r.message);
+  return json(successStatus, Object.assign({ ok: true }, extra || {}, { data: r.data }));
 }
 
 /* ＝＝＝ CORS（跨域）＝＝＝
@@ -95,201 +115,6 @@ function noteOf(out) {
   }
 }
 
-/* ＝＝＝ 参数校验（不合法的输入一律 400，且提示是人话） ＝＝＝ */
-
-function intParam(raw, def, min, max) {
-  if (raw === undefined || raw === null || raw === '') return { ok: true, value: def };
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < min || n > max) return { ok: false };
-  return { ok: true, value: n };
-}
-
-/* 请求体解析：云接入把 body 给成字符串，二进制场景会带 isBase64Encoded 标记 */
-function parseBody(event) {
-  let raw = event && event.body;
-  if (raw === undefined || raw === null || raw === '') return { ok: true, value: {} };
-  if (typeof raw === 'object') return { ok: true, value: raw };   // 少数网关会直接解析好再给
-  if (event.isBase64Encoded) {
-    try { raw = Buffer.from(raw, 'base64').toString('utf8'); }
-    catch (e) { return { ok: false }; }
-  }
-  try {
-    const v = JSON.parse(raw);
-    if (v === null || typeof v !== 'object' || Array.isArray(v)) return { ok: false };
-    return { ok: true, value: v };
-  } catch (e) {
-    return { ok: false };
-  }
-}
-
-/* 文本字段：必填 + 长度上限。长度按 Unicode 码点算（中文一个字算 1），超长时把实际字数报出来 */
-function textField(body, name, label, max, required) {
-  const raw = body[name];
-  if (raw === undefined || raw === null || String(raw).trim() === '') {
-    if (required) return { ok: false, message: '缺少必填字段「' + label + '」' };
-    return { ok: true, value: '' };
-  }
-  const v = String(raw).trim();
-  const len = Array.from(v).length;
-  if (len > max) {
-    return { ok: false, message: '「' + label + '」太长了：最多 ' + max + ' 个字，现在有 ' + len + ' 个字' };
-  }
-  return { ok: true, value: v };
-}
-
-/* 整数字段：必填 + 范围 */
-function intField(body, name, label, min, max) {
-  const raw = body[name];
-  if (raw === undefined || raw === null || raw === '') {
-    return { ok: false, message: '缺少必填字段「' + label + '」' };
-  }
-  const n = Number(raw);
-  if (!Number.isInteger(n)) {
-    return { ok: false, message: '「' + label + '」必须是整数，现在收到的是「' + String(raw) + '」' };
-  }
-  if (n < min || n > max) {
-    return { ok: false, message: '「' + label + '」要在 ' + min + '~' + max + ' 之间，现在填的是 ' + n };
-  }
-  return { ok: true, value: n };
-}
-
-/* ＝＝＝ 处理器 ＝＝＝ */
-
-function health() {
-  return json(200, { ok: true, service: SERVICE, time: new Date().toISOString() });
-}
-
-/* GET /api/cards?subject=&q=&limit= */
-async function getCards(event) {
-  const qp = event.queryStringParameters || {};
-  const limit = intParam(qp.limit, 100, 1, 1000);
-  if (!limit.ok) return fail(400, 'BAD_LIMIT', 'limit 必须是 1~1000 之间的整数');
-
-  const rows = await db.listCards({ subject: qp.subject, q: qp.q, limit: limit.value });
-  return json(200, { ok: true, count: rows.length, data: rows });
-}
-
-/* GET /api/cards/:id */
-async function getCardById(rawId) {
-  const n = Number(rawId);
-  if (!Number.isInteger(n) || n <= 0) return fail(400, 'BAD_ID', 'id 必须是正整数');
-
-  const row = await db.getCardById(n);
-  if (!row) return fail(404, 'CARD_NOT_FOUND', '卡片不存在');
-  return json(200, { ok: true, data: row });
-}
-
-/* GET /api/quiz-records?limit= */
-async function getQuizRecords(event) {
-  const qp = event.queryStringParameters || {};
-  const limit = intParam(qp.limit, 10, 1, 100);
-  if (!limit.ok) return fail(400, 'BAD_LIMIT', 'limit 必须是 1~100 之间的整数');
-
-  const rows = await db.listQuizRecords({ limit: limit.value });
-  return json(200, { ok: true, count: rows.length, data: rows });
-}
-
-/* POST /api/cards —— 契约 4.
- * 请求体 { subject, sub?, type, level, front, back }；不含 id / source / created_at（服务端生成）。 */
-async function postCard(event) {
-  const parsed = parseBody(event);
-  if (!parsed.ok) return fail(400, 'VALIDATION_ERROR', '请求体要是一个 JSON 对象，现在这段内容解析不出来');
-  const b = parsed.value;
-
-  const subject = textField(b, 'subject', '科目', 8, true);
-  if (!subject.ok) return fail(400, 'VALIDATION_ERROR', subject.message);
-  const type = textField(b, 'type', '类型', 8, true);
-  if (!type.ok) return fail(400, 'VALIDATION_ERROR', type.message);
-  const front = textField(b, 'front', '题面', 200, true);
-  if (!front.ok) return fail(400, 'VALIDATION_ERROR', front.message);
-  const back = textField(b, 'back', '答案', 500, true);
-  if (!back.ok) return fail(400, 'VALIDATION_ERROR', back.message);
-  const sub = textField(b, 'sub', '子分类', 12, false);          // 可选，缺省为空串
-  if (!sub.ok) return fail(400, 'VALIDATION_ERROR', sub.message);
-  const level = intField(b, 'level', '难度', 1, 3);
-  if (!level.ok) return fail(400, 'VALIDATION_ERROR', level.message);
-
-  // 防重复：同一科目下题面相同的卡只存一张（判定标准见 api-contract.md 4.）
-  const dup = await db.findCardBySubjectFront(subject.value, front.value);
-  if (dup) {
-    return fail(409, 'DUPLICATE_CARD',
-      '这张卡已经存在了（' + subject.value + ' · id ' + dup.id + '）：同一科目下题面相同的卡只存一张');
-  }
-
-  const row = await db.createCard({
-    subject: subject.value,
-    sub: sub.value,
-    type: type.value,
-    level: level.value,
-    front: front.value,
-    back: back.value,
-  });
-  if (!row) return fail(500, 'DB_ERROR', '写入失败：数据库没有把新记录返回回来');
-
-  return json(201, { ok: true, data: row });
-}
-
-/* POST /api/quiz-records —— 契约 7.
- * 请求体 { score, total, card_ids?, date }。 */
-async function postQuizRecord(event) {
-  const parsed = parseBody(event);
-  if (!parsed.ok) return fail(400, 'VALIDATION_ERROR', '请求体要是一个 JSON 对象，现在这段内容解析不出来');
-  const b = parsed.value;
-
-  const total = intField(b, 'total', '总题数', 1, 100);
-  if (!total.ok) return fail(400, 'VALIDATION_ERROR', total.message);
-  const score = intField(b, 'score', '答对数', 0, 100);
-  if (!score.ok) return fail(400, 'VALIDATION_ERROR', score.message);
-  if (score.value > total.value) {
-    return fail(400, 'VALIDATION_ERROR',
-      '答对数不能大于总题数（score=' + score.value + ' 大于 total=' + total.value + '）');
-  }
-
-  const date = textField(b, 'date', '日期', 10, true);
-  if (!date.ok) return fail(400, 'VALIDATION_ERROR', date.message);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date.value)) {
-    return fail(400, 'VALIDATION_ERROR',
-      '「日期」要写成 YYYY-MM-DD 的样子，例如 2026-10-05，现在收到的是「' + date.value + '」');
-  }
-
-  // card_ids 可选：本轮抽中的卡片 id 数组
-  const cardIds = [];
-  if (b.card_ids !== undefined && b.card_ids !== null) {
-    if (!Array.isArray(b.card_ids)) {
-      return fail(400, 'VALIDATION_ERROR', '「抽中的卡 id」要写成数组，例如 [1,2,3]');
-    }
-    if (b.card_ids.length > 100) {
-      return fail(400, 'VALIDATION_ERROR', '「抽中的卡 id」最多 100 个，现在有 ' + b.card_ids.length + ' 个');
-    }
-    for (let i = 0; i < b.card_ids.length; i++) {
-      const n = Number(b.card_ids[i]);
-      if (!Number.isInteger(n) || n <= 0) {
-        return fail(400, 'VALIDATION_ERROR',
-          '「抽中的卡 id」里出现了不是正整数的值：' + JSON.stringify(b.card_ids[i]));
-      }
-      cardIds.push(n);
-    }
-  }
-
-  // 防重复：同一天 + 同分数 + 同题数 + 同一批卡 = 同一条战绩（判定标准见 api-contract.md 7.）
-  const dup = await db.findDuplicateRecord(date.value, score.value, total.value, cardIds);
-  if (dup) {
-    return fail(409, 'DUPLICATE_RECORD',
-      '这条战绩已经记过了（id ' + dup.id + '，' + date.value + ' · ' + score.value + '/' + total.value +
-      '）：同一天、同一批卡、同样的分数不重复记');
-  }
-
-  const row = await db.createQuizRecord({
-    score: score.value,
-    total: total.value,
-    card_ids: cardIds,
-    date: date.value,
-  });
-  if (!row) return fail(500, 'DB_ERROR', '写入失败：数据库没有把新记录返回回来');
-
-  return json(201, { ok: true, data: row });
-}
-
 /* ＝＝＝ 入口 ＝＝＝ */
 
 exports.main = async function (event) {
@@ -312,17 +137,20 @@ exports.main = async function (event) {
     if (method === 'OPTIONS') {
       out = { statusCode: 204, headers: {}, body: '' };
     } else if (path === '/api/health' && method === 'GET') {
-      out = health();
+      out = json(200, { ok: true, service: SERVICE, time: new Date().toISOString() });
     } else if (path === '/api/cards' && method === 'GET') {
-      out = await getCards(event);
+      const r = await cardsService.list(event);
+      out = respond(r, 200, r.ok ? { count: r.data.length } : null);
     } else if (path.match(/^\/api\/cards\/[^/]+$/) && method === 'GET') {
-      out = await getCardById(path.match(/^\/api\/cards\/([^/]+)$/)[1]);
+      const r = await cardsService.getById(path.match(/^\/api\/cards\/([^/]+)$/)[1]);
+      out = respond(r, 200);
     } else if (path === '/api/cards' && method === 'POST') {
-      out = await postCard(event);
+      out = respond(await cardsService.create(event), 201);
     } else if (path === '/api/quiz-records' && method === 'GET') {
-      out = await getQuizRecords(event);
+      const r = await quizRecordsService.list(event);
+      out = respond(r, 200, r.ok ? { count: r.data.length } : null);
     } else if (path === '/api/quiz-records' && method === 'POST') {
-      out = await postQuizRecord(event);
+      out = respond(await quizRecordsService.create(event), 201);
     } else {
       // 已登记未实现：按契约返回 501（404 只留给谁都没登记的路径）
       let base = path;
