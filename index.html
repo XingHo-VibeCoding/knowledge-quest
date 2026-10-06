@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>知识闯关 — 把知识存进游戏里，越玩越牢</title>
+<link rel="icon" href="data:,">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -27,6 +28,13 @@
 
   <main class="container">
     <p id="stats" class="stats"></p>
+
+    <!-- Day 20：数据来源条 —— 页面必须能自证「我连的是云端数据库，不是本地文件」。
+         绿色 = 接口已连通；红色 = 没连上（并直接给出接口地址与排查顺序）。 -->
+    <p id="srcBar" class="srcbar" aria-live="polite">
+      <span id="srcBadge" class="src-badge">⏳ 正在连接云端数据库…</span>
+      <span id="srcTime" class="src-time"></span>
+    </p>
 
     <!-- ＝＝＝ 视图一：卡片墙（#/wall） ＝＝＝ -->
     <div id="view-wall">
@@ -259,7 +267,14 @@
 
   <footer class="footer">
     <div class="container">
-      <p class="credit">点卡片翻面看答案 · 自存卡片保存在本机浏览器 ｜ 知识闯关 © 2026 张光如（709QR）· XingHo-VibeCoding 训练营</p>
+      <p class="credit">卡片数据实时读取自云端数据库（CloudBase）· 点卡片翻面看答案 · 自存卡片保存在本机浏览器</p>
+      <p class="credit">
+        <a href="tools/checkup.html">🔍 云端数据检查台</a>
+        <span class="dot">·</span>
+        <span id="footBuild">构建 —</span>
+        <span class="dot">·</span>
+        知识闯关 © 2026 张光如（709QR）· XingHo-VibeCoding 训练营
+      </p>
     </div>
   </footer>
 
@@ -269,6 +284,8 @@
     <button id="toastUndoBtn" class="toast-undo hidden" type="button">撤销</button>
   </div>
 
+  <!-- Day 20：配置必须先加载 —— 接口地址只在 js/config.js 里定义一处，其余脚本都引用它 -->
+  <script src="js/config.js"></script>
   <script src="js/router.js"></script>
   <script src="js/store.js"></script>
   <script src="js/components.js"></script>

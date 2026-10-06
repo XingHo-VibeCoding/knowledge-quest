@@ -935,3 +935,25 @@ main { flex: 1; padding-bottom: 30px; }
   .g-keys { text-align: left; }
   .g-stamp { width: 64px; height: 64px; font-size: 8px; }
 }
+
+/* ＝＝＝ Day 20：数据来源条（首页）＝＝＝
+   存在的意义：让页面自己证明「数据来自云端数据库」。
+   对比度按 DESIGN_RULES.md 复算：ok 态文字 #14532d on #dcfce7 ≈ 9.4:1；
+   bad 态 #7f1d1d on #fee2e2 ≈ 9.9:1；提示文字用 --ink-muted（4.8:1）。 */
+.srcbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin: 0 0 14px; font-size: 12.5px; color: var(--ink-muted);
+}
+.src-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 999px; font-weight: 600;
+  background: #eef0f7; color: var(--ink-body); border: 1px solid var(--line);
+}
+.src-badge.ok { background: #dcfce7; color: #14532d; border-color: #bbf7d0; }
+.src-badge.bad { background: #fee2e2; color: #7f1d1d; border-color: #fecaca; }
+.src-time { font-variant-numeric: tabular-nums; }
+
+/* 页脚：检查台入口 + 构建标记 */
+.footer a { color: var(--brand); font-weight: 600; text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+.footer .dot { margin: 0 6px; color: #c3c7d4; }

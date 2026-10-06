@@ -1,7 +1,8 @@
 /* 知识闯关 — 页面逻辑
  *  Day 8 主视图 + Day 9 双视图/录入/本地持久化 + Day 12 组合筛选 + Day 13 三视图路由与四状态
+ *  Day 20：数据唯一来源收敛为云端接口（地址见 js/config.js），失败不再静默回退本地文件
  */
-let cards = [];            // 全部卡片 = mock（quest-cards.json，只读） + 用户自存（localStorage）
+let cards = [];            // 全部卡片 = 云端数据库读回的（接口） + 用户自存（localStorage）
 let currentSubject = '全部'; // F2 当前筛选科目
 let currentSub = '';         // 两级分类：当前子分类（'' = 不分子类）
 let currentKeyword = '';     // Day 12 当前搜索关键词（命中正面或背面）
@@ -9,7 +10,7 @@ let currentRoute = 'wall';   // Day 13 当前视图名：wall / quiz / card
 let demoState = '';          // Day 13 状态演示：loading / empty / error（只有地址栏给了 demo 参数才有值）
 
 /* 两级分类（2026-10-03）：categories = { '科目': ['子类', …], … }
-   默认值只给 mock 自带四类，用户改过的配置存 localStorage（KQStore.CATEGORIES_KEY）。
+   默认值给四个常用科目，用户改过的配置存 localStorage（KQStore.CATEGORIES_KEY）。
    自定义科目默认不分子类，加子类后在配置里生长。 */
 const DEFAULT_SUBS = {
   '口语': ['日常表达', '职场表达'],
@@ -17,7 +18,7 @@ const DEFAULT_SUBS = {
   '专业课': ['编程', '光电'],
   '销售': ['咨询与讲解', '邀约与谈判', '转介绍与内容']
 };
-let categories = {}; // load() 时按 mock subjects + 自存卡科目初始化
+let categories = {}; // load() 时按接口读回的科目 + 自存卡科目初始化
 
 const els = {
   grid: document.getElementById('grid'),
@@ -26,6 +27,10 @@ const els = {
   error: document.getElementById('error'),
   errorMsg: document.getElementById('errorMsg'),
   stats: document.getElementById('stats'),
+  // Day 20：数据来源条（接口地址 / 是否连上真库 / 最后更新时间）
+  srcBadge: document.getElementById('srcBadge'),
+  srcTime: document.getElementById('srcTime'),
+  footBuild: document.getElementById('footBuild'),
   filters: document.getElementById('filters'),
   // Day 12 筛选
   searchInput: document.getElementById('searchInput'),
@@ -209,7 +214,7 @@ function renderFilterStatus(count) {
   showState(filtering && count === 0 ? 'noResult' : 'normal');     // 筛选无结果 / 正常
 }
 
-/* 科目列表 = mock 固定四类 + 用户自存卡里的自定义科目（去重） */
+/* 科目列表 = 接口读回的科目 + 用户自存卡里的自定义科目（去重） */
 let baseSubjects = [];
 function currentSubjects() {
   const set = {};
@@ -219,7 +224,7 @@ function currentSubjects() {
 }
 
 /* ＝＝＝ 两级分类（2026-10-03）＝＝＝
-   初始化：mock 科目用默认子类（用户配置过就用用户的），自定义科目给空数组。
+   初始化：已知科目用默认子类（用户配置过就用用户的），自定义科目给空数组。
    配置只在用户显式增删时写回 localStorage——刷新页面永远不会丢用户的分类。 */
 function initCategories() {
   const stored = KQStore.getCategories();
@@ -412,6 +417,42 @@ function updateStats() {
   const localCount = cards.filter(function (c) { return c.local; }).length;
   els.stats.textContent = '共 ' + cards.length + ' 张卡片（其中你自己存的 ' + localCount +
     ' 张，保存在本机浏览器）· 科目：' + currentSubjects().join(' / ');
+}
+
+/* ＝＝＝ Day 20 余力加练：最后更新时间 ＝＝＝
+ * 两条时间分开显示，因为它们说明的事不一样：
+ *   「库内最新」= 数据库里 last created_at，服务端时钟 → 证明数据是真的、且在动；
+ *   「本次读取」= 页面这次 fetch 的时刻，客户端时钟 → 证明画面是刚拉的、不是缓存。
+ * 零填充 + 24 小时制，免得 9:05 和 21:5 这种读起来别扭。 */
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function fmtClock(d) {
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+
+function fmtStamp(d) {
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+    ' ' + fmtClock(d);
+}
+
+function updateSourceBar() {
+  if (els.footBuild) els.footBuild.textContent = '构建 ' + KQ_CONFIG.BUILD;
+  if (!els.srcBadge || !els.srcTime) return;
+  els.srcBadge.className = 'src-badge';
+  if (kqDataSource === 'api') {
+    els.srcBadge.classList.add('ok');
+    els.srcBadge.textContent = '🟢 数据来源：云端数据库（接口已连通）';
+    els.srcTime.textContent = '库内最新一条：' + (kqNewestWriteAt ? fmtStamp(kqNewestWriteAt) : '—') +
+      ' · 本次读取：' + (kqLastReadAt ? fmtClock(kqLastReadAt) : '—') +
+      ' · 构建 ' + KQ_CONFIG.BUILD;
+  } else if (kqDataSource === 'error') {
+    els.srcBadge.classList.add('bad');
+    els.srcBadge.textContent = '🔴 数据来源：云端数据库 —— 没连上';
+    els.srcTime.textContent = '接口 ' + KQ_API_BASE + ' · 原因：' + kqLastError;
+  } else {
+    els.srcBadge.textContent = '⏳ 正在连接云端数据库…';
+    els.srcTime.textContent = KQ_API_BASE;
+  }
 }
 
 /* Day 12：清除筛选（第三种情况：清空后恢复完整列表） */
@@ -618,15 +659,24 @@ function saveCard() {
     });
 }
 
-/* ＝＝＝ 数据来源（Day 17 起）＝＝＝
- * 卡片数据优先读公网接口（数据库真数据）；接口不可用时回退本地 mock，保证页面不白屏。
- * 接口地址由 Day 20 统一收敛到一处配置，这里先按常量写。
+/* ＝＝＝ 数据来源（Day 17 接接口 → Day 20 正式切到真库）＝＝＝
+ * 卡片数据的唯一来源是公网接口（云端数据库真数据）。
+ *
+ * Day 20 改掉了一件事：以前接口失败会「静默回退本地 quest-cards.json」，
+ * 页面照样好看，但你已经看不出它连的是真库还是本地文件了——
+ * 这恰好会把跨域/地址写错这类故障掩盖成"一切正常"。
+ * 现在接口失败就走错误态，并直接告诉你失败在哪个地址、最可能是什么原因。
+ * 接口地址不再是本文件的常量，统一来自 js/config.js（见 KQ_CONFIG.API_BASE）。
  */
-const KQ_API_BASE = 'https://zgr202511108235qr-d2dkj33964b842.service.tcloudbase.com/api';
-let kqDataSource = 'api'; // 供控制台核对：api = 真库，local = 本地 mock
+const KQ_API_BASE = KQ_CONFIG.API_BASE;
+let kqDataSource = 'loading';  // 'api' = 真库 / 'error' = 没连上（页面会明说）
+let kqLastError = '';          // 最近一次读取失败的说明
+let kqLastReadAt = null;       // 本次读取成功的时刻（客户端时钟）
+let kqNewestWriteAt = null;    // 库里最近一条数据的写入时间（created_at 最大值，服务端时钟）
 
 function loadFromApi() {
-  return fetch(KQ_API_BASE + '/cards?limit=200', { headers: { Accept: 'application/json' } })
+  return fetch(KQ_API_BASE + '/cards?limit=' + KQ_CONFIG.CARDS_LIMIT,
+    { headers: { Accept: 'application/json' } })
     .then(function (r) {
       return r.json().catch(function () { throw new Error('HTTP ' + r.status); }).then(function (body) {
         if (!body || body.ok !== true || !Array.isArray(body.data)) {
@@ -637,10 +687,16 @@ function loadFromApi() {
     });
 }
 
-function loadFromMock() {
-  return fetch('data/quest-cards.json')
-    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(function (d) { return { cards: d.cards, subjects: d.subjects }; });
+/* 库里最近一条数据的写入时间：取全部 created_at 的最大值（真数据自带的时间戳，
+   比自己 new Date() 更能说明"数据是不是真的在动"） */
+function newestCreatedAt(rows) {
+  let max = null;
+  rows.forEach(function (r) {
+    if (!r || !r.created_at) return;
+    const t = new Date(r.created_at);
+    if (!isNaN(t.getTime()) && (!max || t > max)) max = t;
+  });
+  return max;
 }
 
 /* 走接口时没有 subjects 字段，从卡片里按出现顺序去重推导 */
@@ -652,31 +708,41 @@ function subjectsOf(rows) {
 
 function load() {
   showState('loading'); // 状态 1：加载中
-  loadFromApi()
-    .then(function (rows) {
-      kqDataSource = 'api';
-      console.log('[kq] 数据来源：公网接口（数据库真数据），共 ' + rows.length + ' 张卡');
-      return { cards: rows, subjects: subjectsOf(rows) };
-    })
-    .catch(function (e) {
-      kqDataSource = 'local';
-      console.warn('[kq] 接口不可用，回退本地 mock：' + e.message);
-      return loadFromMock();
-    })
-    .then(function (data) {
-      baseSubjects = data.subjects;
-      cards = data.cards.map(function (c) { c.local = false; return c; }).concat(KQStore.getCards());
-      if (!cards || cards.length === 0) { showState('empty'); return; } // 状态 2：空（卡片库本来就没内容）
-      initCategories(); // 两级分类：按科目初始化配置（用户配置过就用用户的）
-      renderFilters(currentSubjects());
-      updateStats();
-      applyRoute(); // Day 13：数据就绪后按地址栏决定显示哪个视图、哪种状态
-    })
-    .catch(function (e) {
-      els.errorMsg.textContent = '卡片加载失败（' + e.message + '）。file:// 直开会拦 fetch，请用本地服务器访问。';
-      showState('error'); // 状态 3：错误
-      console.error(e);
-    });
+  kqDataSource = 'loading';
+  updateSourceBar();
+  loadFromApi().then(onData, onLoadError);
+}
+
+/* 读取成功：真库数据就位 */
+function onData(rows) {
+  kqDataSource = 'api';
+  kqLastError = '';
+  kqLastReadAt = new Date();
+  kqNewestWriteAt = newestCreatedAt(rows);
+  baseSubjects = subjectsOf(rows);
+  cards = rows.map(function (c) { c.local = false; return c; }).concat(KQStore.getCards());
+  console.log('[kq] 数据来源：公网接口 ' + KQ_API_BASE + '，共 ' + rows.length + ' 行（数据库真数据）');
+  updateSourceBar();
+  if (!cards || cards.length === 0) { showState('empty'); return; } // 状态 2：空（库里本来就没内容）
+  initCategories(); // 两级分类：按科目初始化配置（用户配置过就用用户的）
+  renderFilters(currentSubjects());
+  updateStats();
+  applyRoute(); // Day 13：数据就绪后按地址栏决定显示哪个视图、哪种状态
+}
+
+/* 读取失败：不再偷偷换成本地文件，直接说清"连的是谁、错在哪、先查什么" */
+function onLoadError(e) {
+  kqDataSource = 'error';
+  kqLastError = (e && e.message) || '未知错误';
+  els.errorMsg.textContent =
+    '读不到云端数据库：' + kqLastError +
+    '　→　接口地址是 ' + KQ_API_BASE +
+    '。先按顺序查三件事：① 浏览器 F12 的 Console/Network 里有没有 ' +
+    'Access-Control-Allow-Origin 的红字（跨域没放行）；② 这个地址在浏览器里直接打开能不能返回 JSON；' +
+    '③ 网络是否正常。';
+  showState('error'); // 状态 3：错误
+  updateSourceBar();
+  console.error('[kq] 读云端数据失败：', e);
 }
 
 /* ＝＝＝ 事件绑定 ＝＝＝ */

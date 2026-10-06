@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云端数据检查台 · 知识闯关</title>
+<link rel="icon" href="data:,">
+<!-- Day 20：这个页面存在的唯一目的，是「让任何人打开链接都能自己确认数据是真的」。
+     它做四件事，每件都直接对应教材的一项检测：
+       ① 接口健康      → 三件套检测里的「健康接口返回 ok:true」
+       ② 真实数据      → 真数据检测（读的是数据库，不是本地文件）
+       ③ 写入测试      → 三件套检测里的「页面上完成一次写入并刷新仍在」
+       ④ 请求去向      → 请求去向检测（F12 那条请求是不是公网地址）
+     接口地址来自 ../js/config.js，全站只有那一处定义。 -->
+<style>
+  :root {
+    --ink-strong: #24292f;
+    --ink-body: #424761;
+    --ink-secondary: #5f6470;
+    --ink-muted: #6b7280;
+    --brand: #4f46e5;
+    --surface: #f5f6fb;
+    --line: #e8eaf2;
+    --radius: 16px;
+    --shadow-card: 0 1px 2px rgba(23,26,63,.05), 0 10px 28px -14px rgba(23,26,63,.14);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "MiSans", "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: var(--surface); color: var(--ink-strong); min-height: 100vh;
+  }
+  a { color: var(--brand); }
+
+  /* 头部：与首页同一套深靛蓝渐变 + 光斑 */
+  .top {
+    background: #3730a3;
+    background-image:
+      radial-gradient(560px 280px at 88% -30%, rgba(129,140,248,.32), transparent 62%),
+      radial-gradient(480px 240px at 4% 130%, rgba(99,102,241,.30), transparent 58%),
+      linear-gradient(135deg, #312e81, #4338ca 55%, #4f46e5);
+    color: #fff; padding: 24px 0 20px; border-radius: 0 0 var(--radius) var(--radius);
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 18px; }
+  .top-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; justify-content: space-between; }
+  h1 { font-size: 22px; letter-spacing: .3px; }
+  .sub { margin-top: 6px; font-size: 12.5px; color: #dcd9ff; }
+  .clock {
+    text-align: right; font-size: 12px; color: #e4e2ff;
+    font-variant-numeric: tabular-nums; line-height: 1.7;
+  }
+  .clock b { font-size: 15px; color: #fff; display: block; font-weight: 700; }
+
+  main { max-width: 1040px; margin: 0 auto; padding: 18px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-card); padding: 14px 16px 16px; margin-bottom: 14px;
+  }
+  .card h2 { font-size: 14.5px; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .card h2 .no {
+    width: 20px; height: 20px; border-radius: 6px; background: #eef0ff; color: var(--brand);
+    font-size: 11.5px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700;
+  }
+  .hint { font-size: 11.5px; color: var(--ink-muted); margin-bottom: 10px; line-height: 1.6; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
+    font-size: 11.5px; font-weight: 700; background: #eef0f7; color: var(--ink-body); border: 1px solid var(--line);
+  }
+  .badge.ok { background: #dcfce7; color: #14532d; border-color: #bbf7d0; }
+  .badge.bad { background: #fee2e2; color: #7f1d1d; border-color: #fecaca; }
+  .badge.wait { background: #fef3c7; color: #78350f; border-color: #fde68a; }
+
+  pre {
+    background: #f8f9fd; border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-size: 11.5px; line-height: 1.6; overflow-x: auto;
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace; color: var(--ink-body);
+    max-height: 190px;
+  }
+  pre.one { max-height: 60px; white-space: pre-wrap; word-break: break-all; }
+  code.mono { font-family: "Cascadia Mono", Consolas, monospace; font-size: 11.5px; color: var(--ink-body); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--ink-secondary); font-weight: 600; font-size: 11px; background: #fafbff; }
+  td.num { color: var(--ink-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .clip { display: inline-block; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 8px; }
+  button {
+    font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    padding: 8px 15px; border-radius: 10px; border: 1px solid #cdd0e8;
+    background: #fff; color: var(--ink-body); transition: .16s;
+  }
+  button:hover:not(:disabled) { border-color: #b9baf5; background: #f6f5ff; }
+  button.primary {
+    background: linear-gradient(135deg, #4f46e5, #6157ff); color: #fff; border-color: transparent;
+    box-shadow: 0 6px 16px -8px rgba(79,70,229,.7);
+  }
+  button.primary:hover:not(:disabled) { box-shadow: 0 10px 22px -8px rgba(79,70,229,.8); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+
+  .msg { font-size: 12px; line-height: 1.6; margin-top: 8px; }
+  .msg.ok { color: #14532d; }
+  .msg.bad { color: #7f1d1d; }
+  .msg.plain { color: var(--ink-secondary); }
+
+  .kv { font-size: 12px; line-height: 1.85; }
+  .kv b { color: var(--ink-strong); }
+  .kv .k { color: var(--ink-muted); display: inline-block; min-width: 96px; }
+
+  footer { max-width: 1040px; margin: 4px auto 0; padding: 12px 18px 26px; font-size: 11.5px; color: var(--ink-muted); line-height: 1.8; }
+  footer .dot { margin: 0 6px; color: #c3c7d4; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-row">
+    <div>
+      <h1>🔍 云端数据检查台</h1>
+      <p class="sub">知识闯关 · 检查 CloudBase 云函数 <code>api</code>：健康状态 / 数据库真实数据 / 写入链路 / 请求去向</p>
+    </div>
+    <div class="clock">
+      <b id="clock">—</b>
+      最后更新：<span id="updated">尚未读取</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid2">
+    <!-- ① 接口健康 -->
+    <section class="card">
+      <h2><span class="no">1</span>接口健康 <span id="healthBadge" class="badge wait">⏳ 待检测</span></h2>
+      <p class="hint">GET <code class="mono">/api/health</code> —— 不连数据库的最小探针。它通，说明云函数和 HTTP 访问这条路是活的。</p>
+      <pre id="healthJson" class="one">点击「重新检测」开始</pre>
+      <div class="actions"><button id="btnHealth" class="primary" type="button">重新检测</button></div>
+      <p id="healthMsg" class="msg plain">—</p>
+    </section>
+
+    <!-- ④ 请求去向（放在右上，和 F12 一样一眼看到地址） -->
+    <section class="card">
+      <h2><span class="no">4</span>请求去向 <span id="destBadge" class="badge wait">⏳ 待检测</span></h2>
+      <p class="hint">浏览器自己记的资源时间线（<code class="mono">performance</code>），列出本页真正请求过的地址。出现 <code class="mono">localhost</code> 或 <code class="mono">127.0.0.1</code> 就是没切换干净。</p>
+      <div class="kv" style="margin-bottom:8px">
+        <div><span class="k">本页来源</span><b id="originText">—</b></div>
+        <div><span class="k">接口基址</span><code class="mono" id="apiBaseText">—</code></div>
+      </div>
+      <table>
+        <thead><tr><th>方法</th><th>完整请求地址</th><th>耗时</th></tr></thead>
+        <tbody id="destRows"><tr><td colspan="3" class="num">等待页面发起请求…</td></tr></tbody>
+      </table>
+      <p id="destMsg" class="msg plain">—</p>
+    </section>
+  </div>
+
+  <!-- ② 真实数据 -->
+  <section class="card">
+    <h2><span class="no">2</span>真实数据 · <code class="mono">cards</code> 表 <span id="dataBadge" class="badge wait">⏳ 待检测</span></h2>
+    <p class="hint">GET <code class="mono">/api/cards?limit=5</code> —— 读的是云端数据库。想看「数据在动」，去 CloudBase 控制台改一条，再点下面的按钮。</p>
+    <div class="kv" style="margin-bottom:10px">
+      <div><span class="k">库内总行数</span><b id="totalRows">—</b>（<code class="mono">count</code> 字段）</div>
+      <div><span class="k">库内最新一条</span><b id="newestRow">—</b>（<code class="mono">created_at</code> 最大值）</div>
+    </div>
+    <table>
+      <thead><tr><th>id</th><th>科目 / 子类</th><th>正面（节选）</th><th>来源</th><th>写入时间</th></tr></thead>
+      <tbody id="dataRows"><tr><td colspan="5" class="num">等待读取…</td></tr></tbody>
+    </table>
+    <div class="actions">
+      <button id="btnReload" class="primary" type="button">重新读取</button>
+    </div>
+    <p id="dataMsg" class="msg plain">—</p>
+  </section>
+
+  <!-- ③ 写入测试 -->
+  <section class="card">
+    <h2><span class="no">3</span>写入测试 <span id="writeBadge" class="badge wait">未测试</span></h2>
+    <p class="hint">
+      POST <code class="mono">/api/cards</code> —— 点第一下写一条新卡；<b>再点一下是同一条内容</b>，服务端应回 <code class="mono">409</code>（证明「同科目同题面只存一张」这条规则真的在服务端生效，不是前端假装的）。
+      ⚠️ 测试行会真的进库，<code class="mono">DELETE</code> 接口按计划 Day 22 才做，暂时删不掉。
+    </p>
+    <div class="actions">
+      <button id="btnWrite" class="primary" type="button">写入一条测试卡</button>
+      <button id="btnReset" type="button">换一条新内容</button>
+    </div>
+    <pre id="writeJson" class="one">尚未测试</pre>
+    <p id="writeMsg" class="msg plain">—</p>
+  </section>
+</main>
+
+<footer>
+  <div>
+    接口基址 <code class="mono" id="footApi">—</code><span class="dot">·</span>构建 <span id="footBuild">—</span><span class="dot">·</span>
+    <a href="../index.html">← 回知识闯关首页</a>
+  </div>
+  <div>
+    跨域（CORS）在本项目由云函数按白名单回显 <code class="mono">Access-Control-Allow-Origin</code>（不使用 <code class="mono">*</code> 通配符）；
+    白名单只放行 GitHub Pages、CloudBase 静态托管与本机调试三个来源。本页能读到 JSON，就说明当前来源已被放行。
+  </div>
+</footer>
+
+<script src="../js/config.js"></script>
+<script>
+/* Day 20 检查台 —— 只做只读核对 + 一次写入测试，不改任何后端代码。 */
+(function () {
+  var API = KQ_CONFIG.API_BASE;
+  var state = {
+    health: null,
+    cards: null,
+    lastWrite: null,   // 最近一次提交的 payload（第二下复用它 → 期望 409）
+    lastWriteResult: null, // 最近一次写入的响应（状态码 + 返回体）
+    calls: [],         // 本页真实发起过的每一次接口调用（方法/地址/状态/耗时）
+    dests: []
+  };
+
+  /* 所有请求都从这里走 —— 这样「请求去向」面板拿到的是真实的方法与状态码，
+     而不是靠猜；同时也保证页面上不存在第二条偷偷用别处地址的调用路径。 */
+  function apiFetch(method, path, body) {
+    var url = API + path;
+    var t0 = performance.now();
+    var opt = { method: method, headers: { Accept: 'application/json' } };
+    if (body !== undefined) {
+      opt.headers['Content-Type'] = 'application/json';
+      opt.body = JSON.stringify(body);
+    }
+    return fetch(url, opt).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (b) {
+        var rec = { method: method, url: url, status: r.status, ms: Math.round(performance.now() - t0) };
+        state.calls.push(rec);
+        return { status: r.status, body: b, ms: rec.ms };
+      });
+    }, function (e) {
+      state.calls.push({ method: method, url: url, status: 0, ms: Math.round(performance.now() - t0), error: e.message });
+      throw e;
+    });
+  }
+
+  function $(id) { return document.getElementById(id); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function clock(d) { return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds()); }
+  function stamp(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + clock(d);
+  }
+  function badge(el, kind, text) { el.className = 'badge ' + kind; el.textContent = text; }
+  function msg(el, kind, text) { el.className = 'msg ' + kind; el.textContent = text; }
+
+  /* 头部的「最后更新时间」+ 页脚，两个都从同一份配置/状态里取，不会互相打架 */
+  function paintClock() {
+    var now = new Date();
+    $('clock').textContent = clock(now) + ' · ' + now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+  }
+  $('apiBaseText').textContent = API;
+  $('footApi').textContent = API;
+  $('footBuild').textContent = KQ_CONFIG.BUILD;
+  $('originText').textContent = location.origin + '（' + location.protocol.replace(':', '') + '）';
+  paintClock();
+  setInterval(paintClock, 1000);
+
+  function touchUpdated(t) { $('updated').textContent = stamp(t); }
+
+  /* ① 健康 */
+  function checkHealth() {
+    badge($('healthBadge'), 'wait', '⏳ 检测中');
+    msg($('healthMsg'), 'plain', '正在请求 ' + API + '/health …');
+    return apiFetch('GET', '/health')
+      .then(function (res) {
+        state.health = res;
+        $('healthJson').textContent = JSON.stringify(res.body, null, 2);
+        var ok = res.status === 200 && res.body && res.body.ok === true;
+        badge($('healthBadge'), ok ? 'ok' : 'bad', ok ? '✅ HTTP 200 · ok:true' : '❌ HTTP ' + res.status);
+        msg($('healthMsg'), ok ? 'ok' : 'bad',
+          ok ? ('健康接口正常，耗时 ' + res.ms + ' ms，服务报时 ' + res.body.time + '（服务端时钟）。')
+             : ('健康接口返回异常（HTTP ' + res.status + '），先看上面原始 JSON。'));
+        touchUpdated(new Date());
+        return res;
+      })
+      .catch(function (e) {
+        state.health = { error: e.message };
+        $('healthJson').textContent = '请求失败：' + e.message;
+        badge($('healthBadge'), 'bad', '❌ 请求失败');
+        msg($('healthMsg'), 'bad',
+          '连不上接口。排查顺序：① F12 Console 有没有 Access-Control-Allow-Origin 红字（跨域没放行）；' +
+          '② 浏览器直接打开 ' + API + '/health 看能不能返回 JSON；③ 网络是否正常。');
+        throw e;
+      });
+  }
+
+  /* ④ 请求去向：本页真实调用记录 + 浏览器资源时间线（两路互证） */
+  function paintDest() {
+    var tb = $('destRows');
+    tb.innerHTML = '';
+    if (!state.calls.length) {
+      tb.innerHTML = '<tr><td colspan="3" class="num">这一轮还没发起接口请求</td></tr>';
+      badge($('destBadge'), 'wait', '⏳ 待检测');
+      return [];
+    }
+    state.calls.forEach(function (c) {
+      var tr = document.createElement('tr');
+      var st = c.status === 0 ? '失败' : ('HTTP ' + c.status);
+      tr.innerHTML = '<td class="num">' + c.method + '</td>' +
+        '<td><code class="mono">' + c.url + '</code></td>' +
+        '<td class="num">' + st + ' · ' + c.ms + ' ms</td>';
+      tb.appendChild(tr);
+    });
+
+    /* 旁证：浏览器自己的资源时间线里，这条请求也在 */
+    var tl = [];
+    try {
+      tl = performance.getEntriesByType('resource')
+        .filter(function (e) { return e.name.indexOf(API) === 0; })
+        .map(function (e) { return e.name; });
+    } catch (e) { tl = []; }
+
+    var urls = state.calls.map(function (c) { return c.url; }).concat(tl);
+    state.dests = urls;
+    var bad = urls.filter(function (u) { return /localhost|127\.0\.0\.1/.test(u); });
+    if (bad.length) {
+      badge($('destBadge'), 'bad', '❌ 有 ' + bad.length + ' 条指向本机');
+      msg($('destMsg'), 'bad', '发现指向本机的接口请求，说明还有代码在用本地地址，没切换干净。');
+    } else {
+      badge($('destBadge'), 'ok', '✅ 全是 https 公网地址');
+      msg($('destMsg'), 'ok', '本页共 ' + state.calls.length + ' 次接口调用，全部指向公网地址 ' + API +
+        '，没有 localhost / 127.0.0.1（资源时间线里也能对上 ' + tl.length + ' 条）。');
+    }
+    return state.calls;
+  }
+
+  /* ② 真实数据 */
+  function loadCards() {
+    badge($('dataBadge'), 'wait', '⏳ 读取中');
+    msg($('dataMsg'), 'plain', '正在请求 ' + API + '/cards?limit=5 …');
+    return apiFetch('GET', '/cards?limit=5')
+      .then(function (res) {
+        if (res.status !== 200 || !res.body || res.body.ok !== true || !Array.isArray(res.body.data)) {
+          throw new Error((res.body && res.body.error && res.body.error.message) || ('HTTP ' + res.status));
+        }
+        var rows = res.body.data;
+        state.cards = res.body;
+        $('totalRows').textContent = res.body.count + ' 行';
+        var newest = null;
+        rows.forEach(function (c) {
+          if (!c.created_at) return;
+          var t = new Date(c.created_at);
+          if (!isNaN(t.getTime()) && (!newest || t > newest)) newest = t;
+        });
+        $('newestRow').textContent = newest ? stamp(newest) : '—';
+
+        var tb = $('dataRows');
+        tb.innerHTML = '';
+        rows.forEach(function (c) {
+          var tr = document.createElement('tr');
+          var t = c.created_at ? stamp(new Date(c.created_at)) : '—';
+          tr.innerHTML =
+            '<td class="num">' + c.id + '</td>' +
+            '<td>' + esc(c.subject) + (c.sub ? ' / ' + esc(c.sub) : '') + '</td>' +
+            '<td><span class="clip" title="' + esc(c.front) + '">' + esc(c.front) + '</span></td>' +
+            '<td class="num">' + esc(c.source || '—') + '</td>' +
+            '<td class="num">' + t + '</td>';
+          tb.appendChild(tr);
+        });
+        badge($('dataBadge'), 'ok', '✅ 读到 ' + rows.length + ' 行真数据');
+        msg($('dataMsg'), 'ok', '数据来自云端数据库（共 ' + res.body.count + ' 行，此处展示最新 ' + rows.length +
+          ' 行）。想验证「数据在动」：在控制台改一条，再点「重新读取」，这里会跟着变。');
+        touchUpdated(new Date());
+        paintDest();
+        return res.body;
+      })
+      .catch(function (e) {
+        badge($('dataBadge'), 'bad', '❌ 读取失败');
+        $('dataRows').innerHTML = '<tr><td colspan="5" class="num">读取失败：' + esc(e.message) + '</td></tr>';
+        msg($('dataMsg'), 'bad', '读不到数据：' + e.message);
+        throw e;
+      });
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* ③ 写入测试 */
+  function freshPayload() {
+    var d = new Date();
+    var tag = '' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + clock(d).replace(/:/g, '');
+    return {
+      subject: '检查台自检',
+      sub: 'Day20',
+      type: '问答',
+      level: 1,
+      front: '检查台写入测试（' + tag + '）',
+      back: '这一行是检查台页面点出来的测试数据，用来证明「页面 → 接口 → 数据库」这条写入链路是通的。'
+    };
+  }
+
+  function writeTest() {
+    var payload = state.lastWrite || freshPayload();
+    var isDup = !!state.lastWrite;
+    state.lastWrite = payload;
+    $('btnWrite').disabled = true;
+    badge($('writeBadge'), 'wait', '⏳ 提交中');
+    msg($('writeMsg'), 'plain', 'POST ' + API + '/cards …');
+    return apiFetch('POST', '/cards', payload)
+      .then(function (res) {
+        $('btnWrite').disabled = false;
+        state.lastWriteResult = { status: res.status, body: res.body, ms: res.ms };
+        $('writeJson').textContent = 'HTTP ' + res.status + '\n' + JSON.stringify(res.body, null, 2);
+        if (res.status === 201 && res.body && res.body.ok === true) {
+          badge($('writeBadge'), 'ok', '✅ 写入成功 · 新 id ' + res.body.data.id);
+          msg($('writeMsg'), 'ok', '写入成功，数据库分配 id = ' + res.body.data.id +
+            '，耗时 ' + res.ms + ' ms。这条已经落库 —— 点「重新读取」就能在列表里看到它。再点一次本按钮（同内容）应返回 409。');
+        } else if (res.status === 409) {
+          badge($('writeBadge'), 'ok', '✅ 409 防重复生效');
+          msg($('writeMsg'), 'ok', '服务端回 409「重复」——证明唯一性规则在服务端真的生效了。' +
+            ((res.body && res.body.error && res.body.error.message) ? '接口原话：' + res.body.error.message : ''));
+        } else if (res.status === 400) {
+          badge($('writeBadge'), 'bad', '❌ 400 参数不合规');
+          msg($('writeMsg'), 'bad', '接口按规则拒绝了这次写入（HTTP 400），这是正确行为。原话：' +
+            ((res.body && res.body.error && res.body.error.message) || '—'));
+        } else {
+          badge($('writeBadge'), 'bad', '❌ HTTP ' + res.status);
+          msg($('writeMsg'), 'bad', '写入没成功，先看上面原始返回。');
+        }
+        touchUpdated(new Date());
+        paintDest();
+        return res;
+      })
+      .catch(function (e) {
+        $('btnWrite').disabled = false;
+        badge($('writeBadge'), 'bad', '❌ 请求失败');
+        $('writeJson').textContent = '请求失败：' + e.message;
+        msg($('writeMsg'), 'bad', '请求发不出去：' + e.message +
+          '（跨域没放行时就会是这种表现 —— 接口本身没事，是浏览器拦下了响应）。');
+        throw e;
+      });
+  }
+
+  /* 事件 */
+  $('btnHealth').addEventListener('click', function () { checkHealth().catch(function () {}); });
+  $('btnReload').addEventListener('click', function () { loadCards().catch(function () {}); });
+  $('btnWrite').addEventListener('click', function () { writeTest().catch(function () {}); });
+  $('btnReset').addEventListener('click', function () {
+    state.lastWrite = null;
+    badge($('writeBadge'), 'wait', '已换新内容');
+    $('writeJson').textContent = '已清掉上一条，下一次点击会写一条全新内容（预期 201）';
+    msg($('writeMsg'), 'plain', '下一条会用新的时间戳，所以不会撞重复。');
+  });
+
+  /* 首屏自动跑一遍：健康 + 数据（写入必须手动点，免得无意中往库里塞行） */
+  checkHealth().catch(function () {}).then(function () { return loadCards().catch(function () {}); });
+
+  /* 给探针/自动化留一份结构化证据（都是页面真实读到的值，不做二次加工） */
+  window.__KQ_EVIDENCE = function () {
+    return {
+      apiBase: API,
+      build: KQ_CONFIG.BUILD,
+      origin: location.origin,
+      health: state.health,
+      cardsCount: state.cards ? state.cards.count : null,
+      cardIds: state.cards ? state.cards.data.map(function (c) { return c.id; }) : [],
+      lastWrite: state.lastWrite,
+      lastWriteResult: state.lastWriteResult,
+      destinations: state.dests,
+      localhostHits: state.dests.filter(function (u) { return /localhost|127\.0\.0\.1/.test(u); }),
+      updated: $('updated').textContent
+    };
+  };
+})();
+</script>
+</body>
+</html>
