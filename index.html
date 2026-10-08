@@ -142,21 +142,31 @@
         <div class="quiz-card">
           <div class="card-top">
             <span id="qSubject" class="badge"></span>
-            <span class="q-tip">先自己想答案，再点下方按钮核对</span>
+            <span class="q-tip">先自己想，把答案写下来再提交核对</span>
           </div>
           <p id="qFront" class="q-front"></p>
+          <!-- 答案区：答题前一律不显示（Day 21 改造），提交后才展开 -->
           <div id="qBackWrap" class="q-back hidden">
-            <p class="q-back-label">答案</p>
+            <p class="q-back-label">正确答案</p>
             <p id="qBack"></p>
+            <p id="qYours" class="q-yours"></p>
+            <p id="qVerdict" class="q-verdict"></p>
           </div>
         </div>
-        <div class="quiz-actions">
-          <button id="showAnswerBtn" class="retry save" type="button">显示答案</button>
-          <div id="answerBtns" class="hidden">
-            <span class="judge-label">刚才这题：</span>
-            <button id="correctBtn" class="retry save" type="button">✓ 答对了</button>
-            <button id="wrongBtn" class="retry miss" type="button">✗ 没答上</button>
-          </div>
+        <!-- 阶段一：作答（输入框 + 提交）。答案与判定按钮都是隐藏的 -->
+        <div id="answerInputWrap" class="answer-input">
+          <label for="answerInput" class="sr-only">你的答案</label>
+          <textarea id="answerInput" rows="2" placeholder="在这里写下你的答案…（Enter 提交，Shift+Enter 换行）"></textarea>
+          <button id="submitAnswerBtn" class="retry save" type="button" disabled>提交答案</button>
+        </div>
+        <p id="giveUpWrap" class="q-giveup">
+          <button id="giveUpBtn" class="linkish" type="button">想不出来？直接看答案</button>
+        </p>
+        <!-- 阶段二：提交后才出现 —— 判定按钮（系统给预判，可自己改判） -->
+        <div id="answerBtns" class="quiz-actions hidden">
+          <span class="judge-label">刚才这题：</span>
+          <button id="correctBtn" class="retry save" type="button">✓ 答对了</button>
+          <button id="wrongBtn" class="retry miss" type="button">✗ 没答上</button>
         </div>
       </div>
 

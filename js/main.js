@@ -827,7 +827,13 @@ Quiz.init({
   front: document.getElementById('qFront'),
   backWrap: document.getElementById('qBackWrap'),
   back: document.getElementById('qBack'),
-  showAnswerBtn: document.getElementById('showAnswerBtn'),
+  yours: document.getElementById('qYours'),          // Day 21：我写的答案
+  verdict: document.getElementById('qVerdict'),      // Day 21：系统预判说明
+  answerInputWrap: document.getElementById('answerInputWrap'),
+  answerInput: document.getElementById('answerInput'),
+  submitAnswerBtn: document.getElementById('submitAnswerBtn'),
+  giveUpWrap: document.getElementById('giveUpWrap'),
+  giveUpBtn: document.getElementById('giveUpBtn'),
   answerBtns: document.getElementById('answerBtns'),
   correctBtn: document.getElementById('correctBtn'),
   wrongBtn: document.getElementById('wrongBtn'),
