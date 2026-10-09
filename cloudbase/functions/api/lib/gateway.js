@@ -22,9 +22,26 @@
 
 const https = require('https');
 
-const ENV_ID = process.env.CLOUDBASE_ENV_ID || 'zgr202511108235qr-d2dkj33964b842';
+/* 【Day 23 改动：配置一律来自环境变量，代码里不留兜底字面量】
+ * 改之前这里写的是「环境变量 || 一个写死的环境 ID」——环境变量没注入时"悄悄用硬编码的值顶上"。
+ * 为什么必须去掉这种兜底：① 代码里留着的生产配置会跟着仓库走，复制到别的环境会连错库；
+ *   ② 兜底让「配置缺失」这个故障**静默发生**——本地忘了 source .env，页面照样能读，直到写库才发现串了环境。
+ * 现在缺哪个变量就直说缺哪个（见下面的 assertConfig），出错点前移。
+ * 真实值放两处：本地 `.env`（不入库，样例见仓库根 .env.example）、云端云函数环境变量（部署时注入）。 */
+const ENV_ID = process.env.CLOUDBASE_ENV_ID || '';
 const API_KEY = process.env.CLOUDBASE_API_KEY || '';
-const GATEWAY = process.env.CLOUDBASE_GATEWAY || ('https://' + ENV_ID + '.api.tcloudbasegateway.com');
+const GATEWAY = process.env.CLOUDBASE_GATEWAY || (ENV_ID ? 'https://' + ENV_ID + '.api.tcloudbasegateway.com' : '');
+
+/* 配置缺失时说清「缺什么、去哪配」，而不是让后续请求报一句看不懂的错 */
+function missingConfig() {
+  const missing = [];
+  if (!ENV_ID) missing.push('CLOUDBASE_ENV_ID');
+  if (!GATEWAY) missing.push('CLOUDBASE_GATEWAY');
+  if (!API_KEY) missing.push('CLOUDBASE_API_KEY');
+  if (missing.length === 0) return null;
+  return '缺少环境变量：' + missing.join('、') +
+    '（本地：复制 .env.example 为 .env 并填值；线上：部署时注入云函数环境变量。见 README 与 docs/day17-checkin.md）';
+}
 
 /* ＝＝＝ 向网关发一次请求 ＝＝＝
  * path 例：'/v1/rdb/rest/cards?select=id&limit=1'
@@ -39,8 +56,10 @@ function request(path, opt) {
   const payload = (opt.body === undefined || opt.body === null) ? null : JSON.stringify(opt.body);
 
   return new Promise(function (resolve, reject) {
-    if (!API_KEY) {
-      reject(new Error('缺少 CLOUDBASE_API_KEY 环境变量（部署时注入，见 docs/day17-checkin.md）'));
+    const cfgErr = missingConfig();
+    if (cfgErr) {
+      // 配置类错误：属于「服务端配置错」，运维要先看到，所以带上可搜的标记
+      reject(new Error('[CONFIG] ' + cfgErr));
       return;
     }
     const u = new URL(GATEWAY + path);

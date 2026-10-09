@@ -82,7 +82,7 @@ async function create(event) {
     card_ids: cardIds,
     date: date.value,
   });
-  if (!row) return bad(500, 'DB_ERROR', '写入失败：数据库没有把新记录返回回来');
+  if (!row) return bad(500, 'INTERNAL_ERROR', '写入失败：数据库没有把新记录返回回来');
 
   return { ok: true, data: row };
 }

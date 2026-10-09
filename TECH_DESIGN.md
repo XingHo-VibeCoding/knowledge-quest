@@ -435,3 +435,72 @@ Day 20 的写入测试在库里留下 3 条「检查台自检」卡（id 37/38/3
 **结论**：题库回到 26 张纯知识卡，闯关不再抽到噪声；「删除不级联影响历史」这条反向声明由真实数据验证。日志留档 `gcm/kq22/logs/cleanup_before.txt` → `cleanup_delete.txt` → `cleanup_after.txt`。
 
 > 顺带一条纪律：检查台的「写入一条测试卡」按钮以后每点一次都会重新产生噪声卡，所以**用完即删**（页面第 3 块文案已写明：写完把 id 填到第 5 块删掉）。
+
+---
+
+## 十三、Day 23：错误处理与安全边界
+
+### 13.1 三类错误的分工（谁说什么话）
+
+| 类型 | 判定条件 | 谁看 | 说什么 | 落在哪 |
+|---|---|---|---|---|
+| `network` 网络 / 接口错 | fetch 抛错（断网 / DNS / 跨域被拦 / 后端没起） | 用户 | 连不上 + 请求地址 + 恢复建议 | 前端 `js/errors.js` |
+| `input` 用户输入错 | HTTP **4xx** | 用户 | 接口原话（中文），告诉他改什么；补「不是故障」 | 前端 + 业务层（`services/` 里已有中文 message） |
+| `server` 服务端错 | HTTP **5xx** | 用户看人话、**开发者看日志** | 通用提示 + **追踪号** | 入口层 `index.js` 的 catch 与 `fail()` |
+
+**一句话原则**：4xx 的 `message` 是给用户看的（可执行、具体）；5xx 的 `message` **不给**内部细节（表名 / SQL / 堆栈），只给通用人话 + 追踪号；
+真因进 `console.error`，日志行带同一个 `trace=KQ-…`。
+
+### 13.2 追踪号（traceId）——用户那句话与日志那条记录的连接点
+
+```
+[浏览器] 服务器开小差了，请稍后再试。若反复出现，请把追踪号 KQ-MV10V21P-QS4W 报给开发者。
+                                    │
+                                    └─ 同一个号 ─┐
+[云函数日志] [KQ][ERROR] trace=KQ-MV10V21P-QS4W GET /api/cards · 数据库接口返回 404：
+                       {"code":"DATABASE_PGRST205","message":"Could not find the table 'public.cards_broken'…"}
+             [KQ][ERROR] trace=KQ-MV10V21P-QS4W stack:
+             Error: 数据库接口返回 404：…  at lib/gateway.js:93
+```
+
+- 生成：`KQ-` + 时间戳 base36（大写）+ 4 位随机串。**短、能念、能抄**，用户报得出来。
+- 覆盖范围：入口层 catch（内部异常）+ **业务层主动返回的 500**（`fail()` 里兜底补号），即「任何 5xx 都有号」。
+- 响应里 `error.traceId` 结构性给出（前端可直接展示），不是塞在 message 里靠字符串抠。
+
+### 13.3 密钥与配置的边界（数据不会去的地方 · Day 23 版）
+
+| 声明 | 依据 |
+|---|---|
+| **密钥不会出现在代码里** | `CLOUDBASE_API_KEY` 只从 `process.env` 读，无兜底字面量；`git grep` 工作区 + 38 个提交历史均 0 命中 |
+| **密钥不会出现在前端** | 前端只有 `js/config.js` 的 `API_BASE`（公开地址）；`grep CLOUDBASE_API_KEY js/ tools/` 0 命中 |
+| **密钥不会出现在仓库里** | `.env` 被 `.gitignore` 第 2 行忽略；`cloudbaserc.local.json` 同样被忽略；两者从未被提交 |
+| **密钥不会出现在文档/截图里** | 文档写环境变量**名**不写值；`tcb fn detail` 输出在文档里一律脱敏 |
+| **配置缺失不会静默** | 删掉 `lib/gateway.js` 的硬编码兜底：缺 `CLOUDBASE_ENV_ID` / `GATEWAY` / `API_KEY` 时抛明确中文错误（含「去哪配」） |
+| **服务端错不会把内部细节交给用户** | 5xx 的 message 不含表名 / SQL / 堆栈；细节只在 `[KQ][ERROR]` 日志里 |
+| **删除能力不会因为报错而失控** | 4xx/5xx 都不改变护栏逻辑（`source !== 'user'` → 403 在服务层，Day 22 建立） |
+
+### 13.4 安全自查清单（可交付物）
+
+- `docs/security-checklist.md`：**A** 密钥与凭据 9 项 · **B** 三类错误 6 项 · **C** 非法输入边界 6 项 · **D** 仓库与部署卫生 5 项。
+  每项写明「执行命令 + 怎么算通过」，判定只用 **PASS / FAIL / 未执行**。
+- `tools/security-check.sh`：清单的一键执行版。首次实跑 **PASS 21 / FAIL 0**（留档 `gcm/kq23/logs/security_check_all_pass.txt`）。
+- 这也是 Day 25「发布前检查 Skill」的雏形：清单 = Skill 的检查项，脚本 = 复核手段。
+
+### 13.5 回归与线上验证
+
+| 检查 | 结果 |
+|---|---|
+| 31 条只读快照（本地）vs Day 22 基线 | **0 差异**，状态码分布不变 |
+| 31 条只读快照（公网）vs Day 22 基线 | **0 差异** |
+| 本地那份 vs 公网那份 | 不一致 **0 条** |
+| 云函数是否真的重发 | `tcb fn detail` → Modification time = 2026-10-09 22:00:04（本次） |
+| 线上跑的是新版（行为验证） | `GET /api/cards/99999999999999999999` → `500 INTERNAL_ERROR` + `traceId`（旧版是 `DB_ERROR` 带原始英文） |
+| 线上前端 | `BUILD: 'd23-2026-10-09'`；`js/errors.js` 已上线 |
+
+### 13.6 遗留与已知问题
+
+- **`cloudbase/local-http.js` 有 Bug（登记 Day 24）**：壳里写的是 `out = fn.main(event)`，**没有 `await`**，而 `exports.main` 是 async →
+  拿到 Promise 后 `writeHead(undefined)` 直接崩（`ERR_HTTP_INVALID_STATUS_CODE`）。今天实测踩到，按「不越界」先不修，留作 Day 24 的素材。
+- **云函数日志在免费版无法用 CLI 检索**（`tcb fn log` 报 `topic not exist`；`tcb fn invoke` 只能打根路径）→ 线上那条日志暂只能到控制台看。
+- **审计脚本自身要脱敏**（今天踩过）：打印配置结构时必须逐层遮蔽，别只处理顶层字段。
+- 数据无自动备份（结构可重建，数据待补导出方案）——Day 26/27 处理。

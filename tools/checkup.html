@@ -266,6 +266,8 @@
 </footer>
 
 <script src="../js/config.js"></script>
+<!-- Day 23：三类错误（输入错 / 网络错 / 服务端错）的统一翻译层，界面只调它取文案 -->
+<script src="../js/errors.js"></script>
 <script>
 /* Day 20 检查台 —— 只做只读核对 + 一次写入测试，不改任何后端代码。 */
 (function () {
@@ -315,6 +317,11 @@
   function badge(el, kind, text) { el.className = 'badge ' + kind; el.textContent = text; }
   function msg(el, kind, text) { el.className = 'msg ' + kind; el.textContent = text; }
 
+  /* 三类错误的统一翻译（Day 23）：分门别类的规则在 js/errors.js，这里只决定页面上那句话。
+     —— 改之前网络失败会直接把浏览器原话端给用户看（`Failed to fetch`），现在一律走这两句。 */
+  function netText(e, url) { return KQ_ERROR.line(KQ_ERROR.fromThrow(e, url || API)); }
+  function httpText(res, url) { return KQ_ERROR.line(KQ_ERROR.fromResponse(res.status, res.body, url || API)); }
+
   /* 头部的「最后更新时间」+ 页脚，两个都从同一份配置/状态里取，不会互相打架 */
   function paintClock() {
     var now = new Date();
@@ -346,11 +353,12 @@
         return res;
       })
       .catch(function (e) {
-        state.health = { error: e.message };
-        $('healthJson').textContent = '请求失败：' + e.message;
-        badge($('healthBadge'), 'bad', '❌ 请求失败');
+        var t = netText(e, API + '/health');
+        state.health = { error: KQ_ERROR.rawOf(KQ_ERROR.fromThrow(e, API + '/health')) };
+        $('healthJson').textContent = t;
+        badge($('healthBadge'), 'bad', '❌ 连不上');
         msg($('healthMsg'), 'bad',
-          '连不上接口。排查顺序：① F12 Console 有没有 Access-Control-Allow-Origin 红字（跨域没放行）；' +
+          t + ' 排查顺序：① F12 Console 有没有 Access-Control-Allow-Origin 红字（跨域没放行）；' +
           '② 浏览器直接打开 ' + API + '/health 看能不能返回 JSON；③ 网络是否正常。');
         throw e;
       });
@@ -437,9 +445,10 @@
         return res.body;
       })
       .catch(function (e) {
-        badge($('dataBadge'), 'bad', '❌ 读取失败');
-        $('dataRows').innerHTML = '<tr><td colspan="5" class="num">读取失败：' + esc(e.message) + '</td></tr>';
-        msg($('dataMsg'), 'bad', '读不到数据：' + e.message);
+        var t = netText(e, API + '/cards?limit=5');
+        badge($('dataBadge'), 'bad', '❌ 连不上');
+        $('dataRows').innerHTML = '<tr><td colspan="5" class="num">' + esc(t) + '</td></tr>';
+        msg($('dataMsg'), 'bad', t);
         throw e;
       });
   }
@@ -498,10 +507,11 @@
       })
       .catch(function (e) {
         $('btnWrite').disabled = false;
-        badge($('writeBadge'), 'bad', '❌ 请求失败');
-        $('writeJson').textContent = '请求失败：' + e.message;
-        msg($('writeMsg'), 'bad', '请求发不出去：' + e.message +
-          '（跨域没放行时就会是这种表现 —— 接口本身没事，是浏览器拦下了响应）。');
+        var t = netText(e, API + '/cards');
+        badge($('writeBadge'), 'bad', '❌ 连不上');
+        $('writeJson').textContent = t;
+        msg($('writeMsg'), 'bad', t +
+          '（跨域没放行时也会是这种表现 —— 接口本身没事，是浏览器拦下了响应）。');
         throw e;
       });
   }
@@ -511,7 +521,11 @@
    *   改：先 GET 出库里现值 → 显示在页面上 → PATCH → 自动把「改前 → 改后」并排列出来；
    *   删：两步确认 → DELETE → 自动刷新第 2 块列表，用「它消失了」当场自证。
    */
+  /* 接口拒绝了这次请求时，页面上该显示什么（Day 23 分两类）：
+   *   4xx = 用户输入错 → 直接用接口原话（中文，告诉用户改什么），保留原语义；
+   *   5xx = 服务端错   → 走统一翻译（通用人话 + 追踪号），不把内部细节摊给用户。 */
   function errText(res) {
+    if (res.status >= 500) return httpText(res);
     return (res.body && res.body.error && res.body.error.message) || ('HTTP ' + res.status);
   }
   function targetId() {
@@ -531,7 +545,8 @@
         $('beforeBack').textContent = '—';
         $('beforeLevel').textContent = '—';
         badge($('editBadge'), 'bad', '❌ HTTP ' + res.status);
-        msg($('editMsg'), 'bad', '读不到这一行：' + errText(res) + '（id 不存在时接口就该回 404，这是正确行为，不是故障）');
+        msg($('editMsg'), 'bad', '读不到这一行 —— ' + httpText(res) +
+          (res.status === 404 ? '（id 不存在时接口就该回 404，这是正确行为，不是故障）' : ''));
         paintDest();
         return;
       }
@@ -549,8 +564,8 @@
       touchUpdated(new Date());
       paintDest();
     }).catch(function (e) {
-      badge($('editBadge'), 'bad', '❌ 请求失败');
-      msg($('editMsg'), 'bad', '请求发不出去：' + e.message);
+      badge($('editBadge'), 'bad', '❌ 连不上');
+      msg($('editMsg'), 'bad', netText(e, API));
       throw e;
     });
   }
@@ -602,8 +617,8 @@
       return res;
     }).catch(function (e) {
       $('btnPatch').disabled = false;
-      badge($('editBadge'), 'bad', '❌ 请求失败');
-      msg($('editMsg'), 'bad', '请求发不出去：' + e.message);
+      badge($('editBadge'), 'bad', '❌ 连不上');
+      msg($('editMsg'), 'bad', netText(e, API));
       throw e;
     });
   }
@@ -666,8 +681,8 @@
       paintDest();
       return res;
     }).catch(function (e) {
-      badge($('editBadge'), 'bad', '❌ 请求失败');
-      msg($('editMsg'), 'bad', '请求发不出去：' + e.message);
+      badge($('editBadge'), 'bad', '❌ 连不上');
+      msg($('editMsg'), 'bad', netText(e, API));
       throw e;
     });
   }

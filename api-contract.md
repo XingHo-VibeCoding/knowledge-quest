@@ -56,6 +56,9 @@
 
 - 成功响应统一带 `"ok": true`；业务数据放 `data` 字段。
 - 错误响应统一形状：`{ "ok": false, "error": { "code": "<错误码>", "message": "<人话描述>" } }`，HTTP 状态码 4xx/5xx。
+- **服务端错（5xx）额外带 `traceId`**（Day 23 新增）：`{ "ok":false, "error":{ "code":"INTERNAL_ERROR", "message":"服务器开小差了，请稍后再试。若反复出现，请把追踪号 KQ-… 报给开发者。", "traceId":"KQ-…" } }`。
+  约定：4xx 的 `message` 是**给用户看的**（告诉他改什么）；5xx 的 `message` 只给通用人话 + 追踪号，
+  真正的原因（表名、SQL 片段、堆栈）只进云函数日志，日志行同带 `trace=KQ-…` 便于按号对账。
 - 时间一律 ISO 8601（`2026-10-03T12:00:00+08:00`）。
 - 列表响应统一带 `"count"`（本页条数），方便前端核对。
 
@@ -93,7 +96,7 @@
 
 - 请求参数（query，均可选）：`subject`（科目名，精确匹配）、`q`（关键词，对 front/back 做包含匹配）、`limit`（默认 100）
 - 成功：`200 { "ok": true, "count": <n>, "data": [ { id, subject, sub, type, level, front, back, source, created_at }, ... ] }`
-- 错误：`400 { ok:false, error:{ code:"BAD_LIMIT", message:"limit 必须是正整数" } }`；`500 { ..., code:"DB_ERROR" }`
+- 错误：`400 { ok:false, error:{ code:"BAD_LIMIT", message:"limit 必须是正整数" } }`；`500 { ..., code:"INTERNAL_ERROR", traceId:"KQ-…" }`
 - 空数据不报错：`count: 0, data: []`（前端已有「没有找到相关内容」空态承接）
 
 ### 3. `GET /api/cards/:id` ✅ 已实现（Day 17）
@@ -109,7 +112,7 @@
 - **防重复判定（Day 18 定）**：同一 `subject` 下、`front`（去掉首尾空白后）完全相同的卡只保留一张。命中时返回 `409`，不写入。
 - 校验口径（Day 18 实现）：长度按 **Unicode 码点**计（中文一个字算 1）；错误信息一律中文，**说明缺了哪个字段 / 哪个字段不合规**，不返回堆栈。
 - 成功：`201 { "ok": true, "data": { id, subject, sub, type, level, front, back, source: "user", created_at } }` —— 返回的是**数据库写入后的真实行**（含库分配的 `id` 与库生成的 `created_at`）
-- 错误：`400 { code:"VALIDATION_ERROR", message:"缺少必填字段「题面」" ｜ "「科目」太长了：最多 8 个字，现在有 9 个字" ｜ "「难度」要在 1~3 之间，现在填的是 5" }`；`409 { code:"DUPLICATE_CARD", message:"这张卡已经存在了（口语 · id 29）：同一科目下题面相同的卡只存一张" }`；`500 { code:"DB_ERROR" }`
+- 错误：`400 { code:"VALIDATION_ERROR", message:"缺少必填字段「题面」" ｜ "「科目」太长了：最多 8 个字，现在有 9 个字" ｜ "「难度」要在 1~3 之间，现在填的是 5" }`；`409 { code:"DUPLICATE_CARD", message:"这张卡已经存在了（口语 · id 29）：同一科目下题面相同的卡只存一张" }`；`500 { code:"INTERNAL_ERROR", traceId:"KQ-…" }`
 
 ### 5. `PATCH /api/cards/:id` ✅ 已实现（Day 22）
 
@@ -119,7 +122,7 @@
 - 校验口径：与 `POST /api/cards` **完全同一套**（长度按 Unicode 码点计、`level` 限 1~3、错误信息为中文并指明是哪个字段不合规）
 - **防重复**：改 `front` 后若与**同一 `subject` 下另一张卡**的 `front` 相同 → `409`；把 `front` 填成原值（等于没变）不算重复
 - 成功：`200 { "ok": true, "data": { id, subject, sub, type, level, front, back, source, created_at } }` —— 返回的是**改完的真实行**（return=representation），前端不必再 GET 一次
-- 错误：`400 BAD_ID`（id 非正整数）／`404 CARD_NOT_FOUND`（id 不存在）／`400 EMPTY_PATCH`（空请求体）／`400 IMMUTABLE_FIELD`（夹带不可改字段）／`400 UNKNOWN_FIELD`（不认识的字段）／`400 VALIDATION_ERROR`／`409 DUPLICATE_CARD`／`500 DB_ERROR`
+- 错误：`400 BAD_ID`（id 非正整数）／`404 CARD_NOT_FOUND`（id 不存在）／`400 EMPTY_PATCH`（空请求体）／`400 IMMUTABLE_FIELD`（夹带不可改字段）／`400 UNKNOWN_FIELD`（不认识的字段）／`400 VALIDATION_ERROR`／`409 DUPLICATE_CARD`／`500 INTERNAL_ERROR`（带 traceId）
 - **对内只读卡（`source=mock`）不设限制（Day 22 定）**：改是可逆的（改回来即可），护栏留给不可逆的操作。种子卡允许修正答案与难度。
 
 ### 6. `DELETE /api/cards/:id` ✅ 已实现（Day 22）
@@ -147,7 +150,7 @@
 - 错误：`400 { code:"VALIDATION_ERROR", message:"缺少必填字段「日期」" ｜ "「日期」要写成 YYYY-MM-DD 的样子，例如 2026-10-05，现在收到的是「2026/10/05」" ｜ "答对数不能大于总题数（score=9 大于 total=5）" ｜ "「抽中的卡 id」里出现了不是正整数的值：-2" }`；`409 { code:"DUPLICATE_RECORD" }`
 - **前端接线状态（Day 18）**：接口已可用，但**前端还没接**——闯关页目前仍只把最佳战绩写在本机（`kq_best_score`）。改动涉及「每轮结束 POST 一条 + 最佳战绩改由 `GET /api/quiz-records` 取最大值」，和 Day 18 主任务（写接口本身）不是一回事，留到前端收敛那天一并做，免得两件事混在一次提交里说不清。
 
-## 四、明确不做（截至 Day 22）
+## 四、明确不做（截至 Day 23）
 
 - 用户账号/登录（本项目自用数据，不做多用户隔离）
 - **批量操作**（批量改 / 批量删）——Day 22 教材明确划出范围；单条接口已足够，批量会让「一次失误影响面」变大，等真有需求再谈
@@ -167,6 +170,7 @@
 | Day 19（2026-10-06） | **接口形状零改动**——本次是纯结构重构（把数据库代码从接口里拆进数据访问层），按规矩在变更记录里留档说明「契约未受影响」：7 个接口的路径、方法、请求体、响应形状、错误码全部逐字节不变 | 重构验收即回归：31 条用例快照重构前后 **MD5 完全相同**（本地 + 公网各跑一遍），写接口回归 28/28；路由表逐条对照零新增。契约文档本身仅新增本行 |
 | Day 20（2026-10-06） | **接口形状零改动**——本次是前端换心脏（页面请求目标从本地 `data/quest-cards.json` 改为公网接口），后端未改一行。后端侧唯一变化是「被调用」；前端侧新增 `js/config.js`（接口地址唯一收敛点 `KQ_CONFIG.API_BASE`）与 `tools/checkup.html`（云端数据检查台） | 第 3 周主线要求「拿到一个可分享的公网 URL，页面展示真实数据」。已实测：公网首页 1 条请求、检查台 4 条请求全部指向公网地址，本机地址 0 条；页面外改库后刷新内容跟着变（真数据验证）；写入仍走既有 `POST /api/cards`，201/409 行为不变 |
 | Day 22（2026-10-09） | **接口形状变更**（本契约第 4 周第一次真改形状）：① 新增 `PATCH /api/cards/:id`；② `DELETE /api/cards/:id` 由 `🔮 第 4 周` 转为**已实现**，并把成功响应从原先草案的 `data:{ id }` 改成 **返回被删掉的一整行**（草案时期未定，按 Day 22 实测口径定稿）；③ CORS `Access-Control-Allow-Methods` 增加 `PATCH`（否则浏览器预检就把请求掐了）；④ 「卡片修改（PATCH）」从第四章「明确不做」移出，「批量操作」「软删除」补入 | 第 4 周主线：数据从「只能加」变成「能改能删」。按规矩先改本文档再改代码。回归证据：Day 19 的 31 条只读快照用例**保持条数不变**重跑一遍，仅 **2 条**行为有变（且正是本次实现的接口留下的占位用例——`DELETE /api/cards` 集合级 `501→404`、`DELETE /api/cards/5` 内置卡 `501→403`），其余 **29 条逐字节一致**；本地代码与线上部署那两份 31 条结果 md5 相同。新增接口自身的行为验证 30 条用例（本地 / 公网各跑一遍，全绿，无 5xx）见 `docs/day22-checkin.md` |
+| Day 23（2026-10-09） | **响应形状扩展**（不改任何成功响应）：① 所有 **5xx** 的 `error` 增加 `traceId` 字段（`KQ-…`），且**任何** 5xx 都保证有——入口层 catch 与业务层主动返回的 500 都覆盖；② 5xx 的 `code` 由 `DB_ERROR` **统一为 `INTERNAL_ERROR`**（服务层 4 处防御分支一并改）；③ 5xx 的 `message` 不再拼驱动/网关原始报错，只给通用人话 + 追踪号；4xx 的 `message` 规则不变（照旧是给用户看的中文）；④ 「通用约定」补写这条口径 | 教材 Day 23「三类错误（输入错 / 网络错 / 服务端错）统一提示」+ 安全边界。改之前 500 会把 `relation "cards_xxx" does not exist` 这类英文片段甩给用户，而**日志里反而没记原因**；现在用户拿人话 + 追踪号、日志拿完整 stack，两边靠 traceId 对上。回归：Day 19 的 31 条只读快照**条数不变**重跑，本地与公网各一遍，与 Day 22 基线 **0 差异**（新增的 traceId 只出现在 5xx 上，快照集里没有 5xx 用例）；线上实测 `GET /api/cards/99999999999999999999` → `500 INTERNAL_ERROR` + traceId，证明线上跑的是新版。见 `docs/day23-checkin.md` |
 
 > 核对方法：`information_schema.columns` 拉真实表结构 + `pg_constraint` 拉真实约束，与本文档字段清单逐条对齐；结论见 `docs/day16-contract-check.md`。
 

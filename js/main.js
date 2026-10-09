@@ -620,16 +620,23 @@ function saveCard() {
       if (res.status === 409 || res.status === 400) {
         return { from: 'rejected', message: err.message || ('接口拒绝了这次写入（HTTP ' + res.status + '）') };
       }
-      throw new Error('HTTP ' + res.status);
+      // Day 23：5xx 属「服务端错」——翻译成人话（含追踪号），原始错误挂在 e.kqInfo 上备查
+      const info = KQ_ERROR.fromResponse(res.status, res.body, KQ_API_BASE + '/cards');
+      const e = new Error(info.raw);
+      e.kqInfo = info;
+      throw e;
     })
     .catch(function (e) {
-      // 网络不通 / 服务端异常 → 回退本机存储，保证「添加卡片」这个功能本身不瘫
+      // 网络不通 / 服务端异常 → 回退本机存储，保证「添加卡片」这个功能本身不瘫。
+      // Day 23：降级提示不再用 e.message（那会是 `Failed to fetch` 这种英文原话），
+      //         改为三类错误统一翻译后的人话，并说清「只存本机、没进云端」。
+      const info = (e && e.kqInfo) || KQ_ERROR.fromThrow(e, KQ_API_BASE + '/cards');
       const local = {
         id: 'u' + Date.now(), subject: subject, sub: sub || '',
         type: '问答', level: 1, front: front, back: back, local: true
       };
       KQStore.addCard(local);
-      return { from: 'local', card: local, message: e.message };
+      return { from: 'local', card: local, message: KQ_ERROR.line(info), kind: info.kind };
     })
     .then(function (res) {
       els.saveCardBtn.disabled = false;
@@ -650,7 +657,7 @@ function saveCard() {
         els.formMsg.className = 'form-msg ok';
         console.log('[kq] POST /api/cards 成功，新行：' + JSON.stringify(c));
       } else {
-        els.formMsg.textContent = '接口暂时不可用，已存到本机（' + res.message + '）';
+        els.formMsg.textContent = '没写进云端，已先存到本机（' + res.message + '）';
         els.formMsg.className = 'form-msg warn';
       }
       renderFilters(currentSubjects());
@@ -675,12 +682,19 @@ let kqLastReadAt = null;       // 本次读取成功的时刻（客户端时钟�
 let kqNewestWriteAt = null;    // 库里最近一条数据的写入时间（created_at 最大值，服务端时钟）
 
 function loadFromApi() {
-  return fetch(KQ_API_BASE + '/cards?limit=' + KQ_CONFIG.CARDS_LIMIT,
-    { headers: { Accept: 'application/json' } })
+  const url = KQ_API_BASE + '/cards?limit=' + KQ_CONFIG.CARDS_LIMIT;
+  return fetch(url, { headers: { Accept: 'application/json' } })
     .then(function (r) {
-      return r.json().catch(function () { throw new Error('HTTP ' + r.status); }).then(function (body) {
+      return r.json().catch(function () { return null; }).then(function (body) {
         if (!body || body.ok !== true || !Array.isArray(body.data)) {
-          throw new Error((body && body.error && body.error.message) || '接口返回异常');
+          /* Day 23：接口「回了个东西但不能用」时，统一翻译成三类错误里的一类，
+             并保留原始信息（raw）供 Console 排查——不再把英文原话端到页面上。 */
+          const info = r && r.status
+            ? KQ_ERROR.fromResponse(r.status, body, url)
+            : KQ_ERROR.fromThrow(new Error('响应不是合法 JSON'), url);
+          const e = new Error(info.raw);
+          e.kqInfo = info;
+          throw e;
         }
         return body.data;
       });
@@ -730,19 +744,23 @@ function onData(rows) {
   applyRoute(); // Day 13：数据就绪后按地址栏决定显示哪个视图、哪种状态
 }
 
-/* 读取失败：不再偷偷换成本地文件，直接说清"连的是谁、错在哪、先查什么" */
+/* 读取失败：不再偷偷换成本地文件，直接说清"连的是谁、错在哪、先查什么"。
+ * Day 23：错误先过一遍统一翻译（网络错 / 服务端错口径不同），再拼排查指引。 */
 function onLoadError(e) {
   kqDataSource = 'error';
-  kqLastError = (e && e.message) || '未知错误';
-  els.errorMsg.textContent =
-    '读不到云端数据库：' + kqLastError +
-    '　→　接口地址是 ' + KQ_API_BASE +
-    '。先按顺序查三件事：① 浏览器 F12 的 Console/Network 里有没有 ' +
-    'Access-Control-Allow-Origin 的红字（跨域没放行）；② 这个地址在浏览器里直接打开能不能返回 JSON；' +
-    '③ 网络是否正常。';
+  const info = (e && e.kqInfo) || KQ_ERROR.fromThrow(e, KQ_API_BASE);
+  kqLastError = KQ_ERROR.line(info);
+  const isNet = info.kind === KQ_ERROR.KIND.NETWORK;
+  els.errorMsg.textContent = kqLastError + '　→　接口地址是 ' + KQ_API_BASE + '。' +
+    (isNet
+      ? '先按顺序查三件事：① 浏览器 F12 的 Console/Network 里有没有 ' +
+        'Access-Control-Allow-Origin 的红字（跨域没放行）；② 这个地址在浏览器里直接打开能不能返回 JSON；' +
+        '③ 网络是否正常。'
+      : '服务端这次没处理成功，不是你这边操作错了，请稍后重试' +
+        (info.traceId ? '；若反复出现，把追踪号 ' + info.traceId + ' 报给开发者' : '') + '。');
   showState('error'); // 状态 3：错误
   updateSourceBar();
-  console.error('[kq] 读云端数据失败：', e);
+  console.error('[kq] 读云端数据失败：', info.raw, e);
 }
 
 /* ＝＝＝ 事件绑定 ＝＝＝ */

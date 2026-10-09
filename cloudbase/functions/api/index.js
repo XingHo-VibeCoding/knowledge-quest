@@ -9,6 +9,8 @@
  * Day 22：PATCH /api/cards/:id、DELETE /api/cards/:id —— 改一条、删一条，数据操作闭环补齐。
  *         入口层只做两件事：认出这两个方法（含 CORS 预检里放行 PATCH）、把结果翻成响应形状；
  *         「能不能改、能不能删」全在 services/cardsService.js 里判。
+ * Day 23：错误处理与安全边界——服务端错改为「日志记全量 + 用户只见人话 + 追踪号」，
+ *         不再把驱动/网关的原始英文报错甩给用户（详见下方 catch 里的注释）。
  *
  * 【三层各管什么】Day 19
  *   入口层（本文件）        HTTP：路由分发、path 归一化、状态码与响应形状、CORS、服务端日志
@@ -50,8 +52,24 @@ function json(statusCode, obj) {
   };
 }
 
-function fail(statusCode, code, message) {
-  return json(statusCode, { ok: false, error: { code: code, message: message } });
+function fail(statusCode, code, message, extra) {
+  const error = { code: code, message: message };
+  if (extra) Object.assign(error, extra);   // 例：服务端错附 traceId（Day 23）
+  /* Day 23：**任何** 5xx 都必须带追踪号，页面上的话和日志里的记录才对得上。
+   * 入口层的 catch 会自己带 traceId（它另外记了详细日志，这里不重复记）；
+   * 业务层主动返回的 500（如「数据库没把新行返回来」）在这里补号并记一行。 */
+  if (statusCode >= 500 && !error.traceId) {
+    error.traceId = newTraceId();
+    console.error('[KQ][ERROR] trace=' + error.traceId + ' ' + code + ' · ' + message);
+  }
+  return json(statusCode, { ok: false, error: error });
+}
+
+/* 追踪号（Day 23）：让「用户看到的那句话」和「日志里的那条错误」能对上。
+ * 故意做得短、可念可抄——用户报号，开发者直接 grep 日志。 */
+function newTraceId() {
+  return 'KQ-' + Date.now().toString(36).toUpperCase() +
+    '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
 }
 
 /* 把业务层的返回翻译成 HTTP 响应：
@@ -180,8 +198,21 @@ exports.main = async function (event) {
       }
     }
   } catch (e) {
-    // 数据层/内部错误统一兜底；message 保留具体原因，方便前台直接看懂并排查
-    out = fail(500, 'DB_ERROR', '数据没写进去或没拿出来，请稍后再试（' + ((e && e.message) || '未知错误') + '）');
+    /* ＝＝＝ 服务端错（Day 23 改造）＝＝＝
+     * 改之前：把 e.message 直接拼进给用户看的提示里——
+     *   `数据没写进去或没拿出来，请稍后再试（数据库接口返回 404：{"message":"relation \"cards\" does not exist"}）`
+     *   两个毛病：① 用户看不懂（英文 + SQL 片段）；② 真正的排查信息**没有进日志**
+     *   （logLine 只记了状态码和 code，出错时控制台翻不到原因）。
+     * 改之后分两条路走：
+     *   给用户：一句人话 + 一个追踪号（不泄露表名、SQL、堆栈这类内部信息）；
+     *   给日志：完整错误 + stack，用同一个追踪号标记，`grep KQ-xxxx` 直接定位。 */
+    const traceId = newTraceId();
+    const detail = (e && e.message) || '未知错误';
+    console.error('[KQ][ERROR] trace=' + traceId + ' ' + method + ' ' + path + ' · ' + detail);
+    if (e && e.stack) console.error('[KQ][ERROR] trace=' + traceId + ' stack:\n' + e.stack);
+    out = fail(500, 'INTERNAL_ERROR',
+      '服务器开小差了，请稍后再试。若反复出现，请把追踪号 ' + traceId + ' 报给开发者。',
+      { traceId: traceId });
   }
 
   // 统一补跨域响应头（成功与失败都补，前端才读得到错误信息）

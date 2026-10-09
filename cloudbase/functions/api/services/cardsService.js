@@ -93,7 +93,7 @@ async function create(event) {
     front: front.value,
     back: back.value,
   });
-  if (!row) return bad(500, 'DB_ERROR', '写入失败：数据库没有把新记录返回回来');
+  if (!row) return bad(500, 'INTERNAL_ERROR', '写入失败：数据库没有把新记录返回回来');
 
   return { ok: true, data: row };
 }
@@ -167,7 +167,7 @@ async function update(rawId, event) {
   }
 
   const updated = await repo.updateById(n, patch);
-  if (!updated) return bad(500, 'DB_ERROR', '修改失败：数据库没有把改完的记录返回回来');
+  if (!updated) return bad(500, 'INTERNAL_ERROR', '修改失败：数据库没有把改完的记录返回回来');
   return { ok: true, data: updated };
 }
 
@@ -194,7 +194,7 @@ async function remove(rawId) {
   }
 
   const gone = await repo.removeById(n);
-  if (!gone) return bad(500, 'DB_ERROR', '删除失败：数据库没有把删掉的记录返回回来');
+  if (!gone) return bad(500, 'INTERNAL_ERROR', '删除失败：数据库没有把删掉的记录返回回来');
   return { ok: true, data: gone };
 }
 

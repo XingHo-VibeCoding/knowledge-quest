@@ -60,16 +60,27 @@
    验证完**当次就删掉**，不许留到"以后再清"——它会进闯关抽签池（题库 29 张时命中率约 44.6%），
    在科目筛选里造出一个假科目，还会在第三方试用 / 验收时被当成调试残留。
    删的时候优先走接口（`DELETE /api/cards/:id`）而不是直接 SQL：既清数据，又顺带跑一遍真实业务路径。
+18. **错误提示要分人给**（Day 23 新增）：4xx 的 `message` 是**给用户**的——中文、具体、告诉他改什么；
+   5xx 的 `message` 只给通用人话 + **追踪号**，表名/SQL/堆栈这类内部细节只进云函数日志（日志行带同一个 `trace=KQ-…`）。
+   即「任何 5xx 都必须有 traceId」，让用户报号、开发者 grep 就能对上。
+19. **密钥与配置一律走环境变量，不许留兜底字面量**（Day 23 新增）：禁止 `process.env.X || '写死的值'` 这种写法——
+   它会把「配置缺失」变成静默故障（本地忘 source .env 也能跑，直到写库才发现连错环境）。
+   缺哪个变量就报「缺什么、去哪配」。仓库里只放 `.env.example`（只有字段名，无真实值）。
+20. **审计脚本先给自己脱敏**（Day 23 踩坑新增）：写「打印配置/结构」的检查脚本时，必须**逐层**遮蔽敏感字段
+   （今天只处理了顶层 key，数组里内嵌的对象原样打了出来，把真实 Key 打进了工具输出）。
+   脚本跑完先自查一遍输出，再拿去取证。
 
 ## 五、目录结构约定
 
 ```
 knowledge-quest/
 ├── AGENTS.md            # 本规则文件
+├── .env.example         # 环境变量样例（Day 23）：只写字段名与说明，不含真实值；真实值放 .env（已被忽略）
 ├── index.html           # 卡片墙（Day 8）+ 闯关（Day 9）+ 卡片详情（Day 13）
 ├── css/style.css        # 样式（Day 9 起：--ink-* 颜色 token 约束）
 ├── js/components.js     # 可复用知识卡片组件
 ├── js/config.js         # ★ 全站唯一接口配置点（Day 20）：KQ_CONFIG.API_BASE + 构建标记
+├── js/errors.js         # ★ 三类错误统一翻译层（Day 23）：input 4xx / network / server 5xx，全中文
 ├── js/gallery.js        # 展览模式（Day 9）
 ├── js/main.js           # 页面逻辑（状态调度、路由分发、添加卡片）
 ├── js/quiz.js           # 闯关模式（Day 9 雏形；Day 21 改为「先作答再核对」：答案提交后才进 DOM）
@@ -77,6 +88,7 @@ knowledge-quest/
 ├── js/store.js          # localStorage 持久化（Day 9）
 ├── tools/checkup.html   # 云端数据检查台（Day 20）：健康 / 真数据 / 写入测试 / 请求去向
 │                        #   （Day 22 补「⑤ 修改与删除」面板：读一行→PATCH 改→DELETE 删，删除走两次确认）
+├── tools/security-check.sh  # 安全自查清单一键执行版（Day 23）：A 密钥 / B 三类错误 / C 非法输入 / D 仓库卫生，逐项 PASS·FAIL
 ├── api-contract.md      # 接口契约（第 3 周唯一仲裁物，Day 15 建）
 ├── cloudbase/
 │   └── functions/api/   # CloudBase 云函数（Day 15 建，Day 19 分三层）
@@ -87,7 +99,7 @@ knowledge-quest/
 │   （Day 19 前的 db.js 已拆进上面三层，不再存在）
 ├── data/quest-cards.json# 种子卡片数据（Day 16 已灌入 cards 表；Day 20 起页面不再读它，只留档）
 ├── .workbuddy/skills/kq-frontend-audit/  # 项目内可复用 Skill（Day 12）：SKILL.md + 对比度/可访问性脚本 + 调用记录
-└── docs/                # 截图与文档（按需）
+└── docs/                # 按需文档：security-checklist.md（Day 23 安全自查清单）· dayNN-checkin.md（打卡）· screenshots/（证据图）
 ```
 
 ## 六、人机分工（Day 8 继承）
