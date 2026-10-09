@@ -483,7 +483,12 @@ Day 20 的写入测试在库里留下 3 条「检查台自检」卡（id 37/38/3
 
 - `docs/security-checklist.md`：**A** 密钥与凭据 9 项 · **B** 三类错误 6 项 · **C** 非法输入边界 6 项 · **D** 仓库与部署卫生 5 项。
   每项写明「执行命令 + 怎么算通过」，判定只用 **PASS / FAIL / 未执行**。
-- `tools/security-check.sh`：清单的一键执行版。首次实跑 **PASS 21 / FAIL 0**（留档 `gcm/kq23/logs/security_check_all_pass.txt`）。
+- `tools/security-check.sh`：清单的一键执行版。实跑 **PASS 21 / FAIL 0**（留档 `gcm/kq23/logs/security_check_all_pass.txt`）。
+- **特征词只有一个真源**：定义在脚本的 `PAT` 变量里，且用**分段拼接**写法（`'post''gres'`、`'-----''BEGIN'`），使脚本自身不含可被匹配的完整字面量。
+  文档要引用就 `bash tools/security-check.sh --print-pattern` 现取 —— 清单里不再抄第二遍。
+  > 设计依据：本脚本补完文档后再跑，A1/A2/A4/D1 报了 4 个 FAIL，**逐条查全是假阳性**——A1/A2 命中的是「特征词的定义本身」（三份文件各抄了一遍），
+  > A4/D1 把 `.env.example`（模板）和 `docs/screenshots/`（证据图，文件名含 secret）判成了敏感文件。
+  > 收紧判据（而非放宽红线）+ 明示例外后重跑全绿。**报 FAIL 不一定是代码有病，也可能是判据有病**；而「排除项」必须写在文档上，不能靠脚本悄悄忽略（`AGENTS.md` 第 21 条）。
 - 这也是 Day 25「发布前检查 Skill」的雏形：清单 = Skill 的检查项，脚本 = 复核手段。
 
 ### 13.5 回归与线上验证
@@ -502,5 +507,6 @@ Day 20 的写入测试在库里留下 3 条「检查台自检」卡（id 37/38/3
 - **`cloudbase/local-http.js` 有 Bug（登记 Day 24）**：壳里写的是 `out = fn.main(event)`，**没有 `await`**，而 `exports.main` 是 async →
   拿到 Promise 后 `writeHead(undefined)` 直接崩（`ERR_HTTP_INVALID_STATUS_CODE`）。今天实测踩到，按「不越界」先不修，留作 Day 24 的素材。
 - **云函数日志在免费版无法用 CLI 检索**（`tcb fn log` 报 `topic not exist`；`tcb fn invoke` 只能打根路径）→ 线上那条日志暂只能到控制台看。
-- **审计脚本自身要脱敏**（今天踩过）：打印配置结构时必须逐层遮蔽，别只处理顶层字段。
+- **审计脚本自身要脱敏 + 判据不能自己污染结果**（今天各踩一次）：打印配置结构时必须逐层遮蔽（只处理顶层字段会把真实 Key 打进输出）；
+  扫描用的特征词只定义一处、且不能让清单/脚本/文档自己命中（见 13.4 与 `AGENTS.md` 第 20、21 条）。
 - 数据无自动备份（结构可重建，数据待补导出方案）——Day 26/27 处理。

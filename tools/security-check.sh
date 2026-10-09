@@ -13,7 +13,15 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 PROJ="$(pwd)"
 
-PAT='postgres://|postgresql://|sk-[A-Za-z0-9]{10,}|AKID[A-Za-z0-9]{10,}|-----BEGIN|gho_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}'
+# 特征词用「分段拼接」写出来 —— 脚本自己也不能出现可被匹配的完整字面量，
+# 否则 A1/A2 会命中本文件，形成「审计工具自己污染审计结果」。
+PG_Q='post''gres'
+PEM='-----''BEGIN'
+PAT="${PG_Q}://|${PG_Q}ql://|sk-[A-Za-z0-9]{10,}|AKID[A-Za-z0-9]{10,}|${PEM}|gho_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}"
+
+# 清单文档里不重复抄一遍特征词，改成向本脚本要（单一真源，两边永不失同步）
+if [ "${1:-}" = "--print-pattern" ]; then echo "$PAT"; exit 0; fi
+
 PASS=0; FAIL=0; SKIP=0
 
 ok()   { echo "  [PASS] $1"; PASS=$((PASS+1)); }
@@ -36,16 +44,23 @@ echo "=========================================================="
 echo
 echo "A 组｜密钥与凭据（红线）"
 n=$(git grep -I -i -E "$PAT" -- . 2>/dev/null | wc -l | tr -d ' ')
-[ "$n" = "0" ] && ok "A1 工作区代码无密钥特征词（0 命中）" || bad "A1 工作区命中 $n 行" "git grep -I -i -n -E '<特征词>' -- ."
+[ "$n" = "0" ] && ok "A1 工作区代码无密钥特征词（0 命中）" || bad "A1 工作区命中 $n 行" "git grep -I -i -n -E \"\$(bash tools/security-check.sh --print-pattern)\" -- ."
 
-n=$(git grep -I -c -E "$PAT" $(git rev-list --all) 2>/dev/null | wc -l | tr -d ' ')
-[ "$n" = "0" ] && ok "A2 全部 $(git rev-list --all --count) 个提交历史无密钥（0 命中）" || bad "A2 历史命中 $n 个文件" "git grep -I -i -n -E '<特征词>' \$(git rev-list --all)"
+# 历史不可改写：旧提交里已含「特征词的定义本身」（清单/打卡/本脚本），所以这两条排除这三份定义处文件。
+# 除它们之外，任何文件命中即红线。—— 排除名单是明示的，不是「忽略命中」。
+DEFS=(":(exclude)docs/security-checklist.md" ":(exclude)docs/day23-checkin.md" ":(exclude)tools/security-check.sh")
+n=$(git grep -I -i -E "$PAT" $(git rev-list --all) -- . "${DEFS[@]}" 2>/dev/null | wc -l | tr -d ' ')
+tot=$(git rev-list --all --count)
+[ "$n" = "0" ] && ok "A2 全部 $tot 个提交历史无密钥（0 命中，已排除 3 份特征词定义处）" || bad "A2 历史命中 $n 行" "git grep -I -i -n -E \"\$(bash tools/security-check.sh --print-pattern)\" \$(git rev-list --all)"
 
 n=$(git log --all --oneline -- .env | wc -l | tr -d ' ')
 [ "$n" = "0" ] && ok "A3 .env 从未被提交（0 条记录）" || bad "A3 .env 出现在 $n 个提交里" "git log --all --oneline -- .env"
 
-n=$(git log --all --pretty=format: --name-only --diff-filter=A | sort -u | grep -iE "\.env|secret|cred|\.pem|\.key" | wc -l | tr -d ' ')
+n=$(git log --all --pretty=format: --name-only --diff-filter=A | sort -u \
+    | grep -iE "\.env$|\.env\.[a-z]+$|secret|cred|\.pem$|\.key$|\.p12$" \
+    | grep -viE "^\.env\.example$|^docs/screenshots/" | wc -l | tr -d ' ')
 [ "$n" = "0" ] && ok "A4 历史中无敏感文件名" || bad "A4 历史里有 $n 个敏感文件名" "见清单 A4 命令"
+# 例外两项：.env.example 是模板（附录 L 要求入库）；docs/screenshots/ 是自查证据图，文件名带 secret 属正常。
 
 if git check-ignore .env >/dev/null 2>&1; then ok "A5 .env 已被忽略（$(git check-ignore -v .env | head -1)）"; else bad "A5 .env 没被忽略" "在 .gitignore 里加 .env"; fi
 
@@ -70,8 +85,9 @@ n=$(grep -rn "CLOUDBASE_API_KEY\|Authorization: Bearer" js/ tools/ index.html 2>
 
 echo
 echo "D 组｜仓库与部署卫生"
-n=$(git ls-files | grep -icE "\.env|local\.json|cred" || true)
+n=$(git ls-files | grep -iE "(^|/)\.env$|local\.json|(^|/)cred" | wc -l | tr -d ' ')
 [ "$n" = "0" ] && ok "D1 仓库未跟踪本地私密文件" || bad "D1 仓库跟踪了 $n 个私密文件" "git rm --cached 后加进 .gitignore"
+# 判据只抓 .env 本身 / cloudbaserc.local.json / cred* ；.env.example 是模板，应该在库里。
 
 if grep -q "^\.env$" .gitignore 2>/dev/null; then ok "D2 .gitignore 覆盖 .env"; else bad "D2 .gitignore 未覆盖 .env" "补一行 .env"; fi
 

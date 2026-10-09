@@ -13,15 +13,20 @@
 
 | # | 检查项 | 执行命令 | 怎么算通过 |
 |---|---|---|---|
-| A1 | 工作区代码里没有密钥 | `git grep -I -i -n -E "postgres://\|postgresql://\|sk-[A-Za-z0-9]{10,}\|AKID\|-----BEGIN\|gho_\|ghp_" -- .` | **输出 0 行** |
-| A2 | **全部提交历史**里没有密钥 | `git grep -I -i -n -E "<同 A1>" $(git rev-list --all)` | **输出 0 行**（这条是红线，命中即按「作废密钥 → 重新生成 → 换环境变量」处理，不是改代码了事） |
+| A1 | 工作区代码里没有密钥 | `git grep -I -i -n -E "$(bash tools/security-check.sh --print-pattern)" -- .` | **输出 0 行** |
+| A2 | **全部提交历史**里没有密钥 | `git grep -I -i -n -E "$(bash tools/security-check.sh --print-pattern)" $(git rev-list --all) -- . ':(exclude)docs/security-checklist.md' ':(exclude)docs/day23-checkin.md' ':(exclude)tools/security-check.sh'` | **输出 0 行**（排除的 3 份是特征词**定义处**，历史不可改写、排除名单明示；除它们外任何文件命中即红线，按「作废密钥 → 重新生成 → 换环境变量」处理，不是改代码了事） |
 | A3 | `.env` 从未被提交过 | `git log --all --oneline -- .env` | **无输出** |
-| A4 | 历史里没有敏感文件名 | `git log --all --pretty=format: --name-only --diff-filter=A \| sort -u \| grep -iE "\.env\|secret\|cred\|\.pem\|\.key"` | **无输出** |
+| A4 | 历史里没有敏感文件名 | `git log --all --pretty=format: --name-only --diff-filter=A \| sort -u \| grep -iE "\.env$\|\.env\.[a-z]+$\|secret\|cred\|\.pem$\|\.key$" \| grep -viE "^\.env\.example$\|^docs/screenshots/"` | **无输出**（例外两项：`.env.example` 是模板、本就该入库；`docs/screenshots/` 是自查证据图，文件名带 secret 属正常） |
 | A5 | `.env` 已被忽略 | `git check-ignore -v .env` | **有输出**且形如 `.gitignore:N:.env`（无输出 = 没被忽略，必须修 .gitignore） |
 | A6 | `.env.example` 存在且**不含真实值** | `grep -E "^[A-Z_]+=" .env.example` | 每个变量等号后为**空**（`PORT`/`KQ_QUIET` 这类可选项允许有非敏感默认值） |
 | A7 | `.env.example` 能正常入库 | `git check-ignore .env.example; echo $?` | 退出码 **1**（= 不被忽略；若为 0 说明被误忽略，示例文件上传不上去） |
 | A8 | 代码里没有「配置缺失就顶上字面量」的兜底 | `grep -rnE "process\.env\.[A-Z_]+ *\|\| *['\"][^'\"]+['\"]" cloudbase/functions/` | **0 命中**（缺哪个环境变量就报错，不静默用写死的值顶上；CORS 白名单里的公开域名属必须写死的业务数据，不算） |
 | A9 | 前端不含任何密钥 | `grep -rn "CLOUDBASE_API_KEY\|Authorization: Bearer" js/ tools/ index.html` | **0 命中**（页面能拿到 Key 就等于把数据库交出去了） |
+
+> **A1/A2 的特征词从哪来？** 不在这份文档里抄一遍——文档里写了字面量，扫描就会命中文档自己（我第一次跑就栽在这里：
+> 清单、打卡文档、脚本三处各命中 1 行，全是「特征词的定义」本身）。所以特征词只定义在 `tools/security-check.sh` 的 `PAT`
+> 变量里，且用**分段拼接**写法（`'post''gres'`、`'-----''BEGIN'`），让脚本自己也不含可匹配的完整字面量。
+> 文档要引用就执行 `bash tools/security-check.sh --print-pattern` 现取。**这条对任何审计脚本都成立：先证明审计工具自己干净，再用它去审别人。**
 
 ## B 组｜三类错误提示
 
@@ -49,7 +54,7 @@
 
 | # | 检查项 | 命令 | 怎么算通过 |
 |---|---|---|---|
-| D1 | 仓库里没有本地私密文件 | `git ls-files \| grep -iE "\.env\|local\.json\|cred"` | **0 行** |
+| D1 | 仓库里没有本地私密文件 | `git ls-files \| grep -iE "(^\|/)\.env$\|local\.json\|(^\|/)cred"` | **0 行**（判据只抓 `.env` 本身 / `cloudbaserc.local.json` / `cred*`；`.env.example` 是模板，应该在库里） |
 | D2 | `.gitignore` 覆盖到位 | `cat .gitignore` | 至少含 `.env`、`*.log`、部署临时目录、`cloudbaserc.local.json` |
 | D3 | 前端没有本地地址残留 | `grep -rn "localhost:8790\|127.0.0.1:8790" js/ index.html tools/` | **0 命中**（接口地址只在 `js/config.js` 一处定义） |
 | D4 | 跨域没用通配符 | `grep -rn "Access-Control-Allow-Origin" cloudbase/functions/api/index.js` | **不含 `*`**；只有白名单回显 |

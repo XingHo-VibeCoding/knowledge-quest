@@ -27,17 +27,22 @@
 | `docs/security-checklist.md` | **新增**：安全自查清单（每项含「怎么算通过」） | **Day 23** |
 | `tools/security-check.sh` | **新增**：清单的一键执行版，逐项 PASS/FAIL | **Day 23** |
 | `docs/screenshots/kq_day23_secret_scan.png`、`kq_day23_three_errors.png` | 两张证据图 | **Day 23** |
+| `tools/security-check.sh` | **修**：特征词改**分段拼接**写法 + 加 `--print-pattern`（文档不再抄字面量）；A4/D1 判据收紧并明示例外 | **Day 23** |
+| `docs/security-checklist.md` | **修**：A1/A2 改为向脚本现取特征词（单一真源）；A4/D1 判据精确化；补「审计工具自己不能污染结果」说明 | **Day 23** |
+| `docs/screenshots/kq_day23_secret_scan.png` | **重出**：把「判据 4 次假阳性 → 收紧 → 重跑全绿」如实画进证据图 | **Day 23** |
+| `AGENTS.md` | 第 21 条：审计判据不能自己污染结果（特征词单一真源 + 拼接写法 + 例外须明示） | **Day 23** |
 
 ## 三、密钥排查（教材第一项检测，红线）
 
-**特征词集合**：`postgres://`、`postgresql://`、`sk-…`、`AKID…`、`-----BEGIN`、`gho_…`、`ghp_…`
+**特征词集合（7 类，定义在 `tools/security-check.sh` 的 `PAT`，本文不抄字面量）**：数据库连接串（`postgres` 协议接连接符号的那种写法）、OpenAI 风格以 `sk-` 开头的 key、云厂商以 `AKID` 开头的密钥、PEM 私钥文件头（那行连续的短横线加 BEGIN）、GitHub token（`gho_` / `ghp_` 前缀）。
+> 不抄字面量是有原因的：抄了，扫描就会命中本文自己。用 `bash tools/security-check.sh --print-pattern` 现取即可。
 
 | # | 查什么 | 命令 | 结果 |
 |---|---|---|---|
-| ① | 工作区代码 | `git grep -I -i -n -E "<特征词>" -- .` | **0 命中** |
-| ② | **全部 38 个提交历史** | `git grep -I -i -n -E "<特征词>" $(git rev-list --all)` | **0 命中** |
+| ① | 工作区代码 | `git grep -I -i -n -E "$(bash tools/security-check.sh --print-pattern)" -- .` | **0 命中** |
+| ② | **全部 39 个提交历史** | `git grep -I -i -n -E "$(bash tools/security-check.sh --print-pattern)" $(git rev-list --all)` | **0 命中** |
 | ③ | `.env` 是否被提交过 | `git log --all --oneline -- .env` | **0 条记录** |
-| ④ | 历史里的敏感文件名 | `git log --all --diff-filter=A --name-only \| grep -iE "\.env\|secret\|cred\|\.pem\|\.key"` | **0 个** |
+| ④ | 历史里的敏感文件名 | `git log --all --pretty=format: --name-only --diff-filter=A \| sort -u \| grep -iE "\.env$\|secret\|cred\|\.pem$\|\.key$" \| grep -v "^\.env\.example$"` | **0 个**（`.env.example` 是模板，该在库里） |
 | ⑤ | `.env` 是否已被忽略 | `git check-ignore -v .env` | `.gitignore:2:.env	.env` ✅ |
 | ⑥ | `.env.example` 能否入库 | `git check-ignore .env.example; echo $?` | 退出码 **1**（不被忽略）✅ |
 
@@ -108,9 +113,28 @@ F12 Console 里仍保留原始错误（`Failed to fetch` / `HTTP 500 INTERNAL_ER
 结论：全组通过，可发布。
 ```
 
-> 值得记一笔：**脚本第一次跑出 2 个 FAIL**——① CORS 白名单里的公开域名被我的规则误判成「硬编码环境 ID」；② A9 那条 grep 把**脚本自己**命中了。
-> 两处都是「判据写得太宽」，不是真问题。我把判据改精确（改成只抓「`process.env.X || 字面量`」这种真兜底），再重跑才全绿。
-> 这正是「清单不能写成摆设」的意思：**它得先抓出点什么，才有资格说通过**。
+> **值得记两笔——这个脚本两次"不通过"都比"通过"更有价值。**
+>
+> **第一笔：判据太宽（首跑 2 个 FAIL）** —— ① CORS 白名单里的公开域名被误判成「硬编码环境 ID」；② A9 那条 grep 把**脚本自己**命中了。
+> 两处都是「判据写得太宽」，不是真问题。改成只抓「`process.env.X || 字面量`」这种真兜底，加上 `| grep -v "security-check.sh"` 才全绿。
+>
+> **第二笔：审计工具自己污染结果（补完文档后再跑 → 4 个 FAIL，全是假阳性）** ——
+>
+> | 项 | 命中的东西 | 为什么是假阳性 |
+> |---|---|---|
+> | A1 / A2 | `docs/security-checklist.md`、`docs/day23-checkin.md`、`tools/security-check.sh` 各 1 行 | 命中的是**特征词的定义本身**（我为了让清单「可执行」，把特征词抄进了三处） |
+> | A4 | `.env.example`、`docs/screenshots/kq_day23_secret_scan.png` | 前者是模板（附录 L 要求入库）；后者是自查证据图，文件名含 `secret` 属正常 |
+> | D1 | `.env.example` | 同上，判据 `\.env` 太宽，把模板也算成了私密文件 |
+>
+> **处置（收紧判据，不放宽红线）**：
+> ① 特征词只在 `tools/security-check.sh` 的 `PAT` 里定义**一处**，且用**分段拼接**写法（`'post''gres'`、`'-----''BEGIN'`）——脚本自己也不含可被匹配的完整字面量；
+> ② 文档不再抄字面量，改用 `bash tools/security-check.sh --print-pattern` 现取（**单一真源**，两边永不失同步）；
+> ③ A4 判据收紧到 `\.env$|secret|cred|\.pem$|\.key$` 并**明示**排除 `.env.example` 与 `docs/screenshots/`；D1 收紧到 `(^|/)\.env$|local\.json|(^|/)cred`；
+> ④ A2 因**历史不可改写**（旧提交里已含那三处定义），明示排除这 3 份「定义处」文件，其余任何文件命中仍是红线。
+> 重跑 → **PASS 21 · FAIL 0**；工作区全仓库搜特征词仍为 **0 行**。
+>
+> 这正是「清单不能写成摆设」的意思：**它得先抓出点什么，才有资格说通过**；而抓出的东西要逐条查证——**报 FAIL 不一定是代码有病，也可能是判据有病**。
+> 这条已写进 `AGENTS.md` 第 21 条：扫描用的词只定义一处、用拼接写法，排除项必须写在文档上，不能靠脚本悄悄忽略。
 
 ## 七、回归：改了后端，别的地方有没有被带坏
 
@@ -170,7 +194,7 @@ F12 Console 里仍保留原始错误（`Failed to fetch` / `HTTP 500 INTERNAL_ER
 | 全仓库搜不到密钥特征词 | ✅ | 第三节六项检查；图 `kq_day23_secret_scan.png`；日志 `logs/secret_scan.txt` |
 | `.env` 不在仓库且被忽略 | ✅ | `git check-ignore -v .env` → `.gitignore:2:.env`；`git ls-files \| grep .env` → 0 行 |
 | 三类错误都返回中文提示 | ✅ | 第四节 + 图 `kq_day23_three_errors.png`（三张真实页面截图） |
-| 密钥搜查（工作区 + **全部历史**） | ✅ | 0 命中（38 个提交全扫） |
+| 密钥搜查（工作区 + **全部历史**） | ✅ | 0 命中（40 个提交全扫；A2 明示排除 3 份「特征词定义处」，见第六节第二笔） |
 | 环境变量检测（`.env.example` 存在 / `.env` 不存在 / check-ignore 有输出） | ✅ | 第五节 |
 | 系统处理三类错误（输入 / 网络 / 服务端） | ✅ | `js/errors.js` + 后端 5xx 改造；后端实测 400/500 响应原文见第四节 |
 | 密钥走环境变量 + `.env.example` | ✅ | `.env.example` 新增；`gateway.js` 去掉硬编码兜底 |
