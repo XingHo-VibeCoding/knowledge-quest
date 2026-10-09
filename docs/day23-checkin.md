@@ -26,7 +26,7 @@
 | `api-contract.md` | 通用约定补 5xx+traceId 口径；5xx 错误码统一；变更记录加 Day 23 | **Day 23** |
 | `docs/security-checklist.md` | **新增**：安全自查清单（每项含「怎么算通过」） | **Day 23** |
 | `tools/security-check.sh` | **新增**：清单的一键执行版，逐项 PASS/FAIL | **Day 23** |
-| `docs/screenshots/kq_day23_secret_scan.png`、`kq_day23_three_errors.png` | 两张证据图 | **Day 23** |
+| `docs/screenshots/kq_day23_*.png` | **五张打卡图**（本题交付以图为准）：`secret_scan` 密钥排查 0 命中 + 自匹配修复全过程 · `three_errors` 三类错误中文提示 · `checkin` 本打卡文档 · `checklist` 安全自查清单 · `checkrun` 清单一键执行实录（终端风格） | **Day 23** |
 | `tools/security-check.sh` | **修**：特征词改**分段拼接**写法 + 加 `--print-pattern`（文档不再抄字面量）；A4/D1 判据收紧并明示例外 | **Day 23** |
 | `docs/security-checklist.md` | **修**：A1/A2 改为向脚本现取特征词（单一真源）；A4/D1 判据精确化；补「审计工具自己不能污染结果」说明 | **Day 23** |
 | `docs/screenshots/kq_day23_secret_scan.png` | **重出**：把「判据 4 次假阳性 → 收紧 → 重跑全绿」如实画进证据图 | **Day 23** |
