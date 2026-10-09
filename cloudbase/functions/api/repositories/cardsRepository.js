@@ -53,7 +53,35 @@ async function create(input) {
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 }
 
-/* 防重复用：同科目 + 同题面视为同一张卡（判定标准见 api-contract.md 4.） */
+/* 修改（Day 22）：只改 patch 里带来的字段，其余字段原样不动。
+ * 两个关键点：
+ *   · `id=eq.N` 是**条件**不是「先查再改」——条件写在 URL 上，由服务端原子匹配，只可能命中一行；
+ *   · `Prefer: return=representation` 让我们拿回**改完之后的那一行**（而不是「改了 N 行」这种自述），
+ *     接口把真实结果返给前端，「改的到底是不是真数据」一眼可见。
+ * 传进来的 patch 由业务层把关过（白名单 + 校验），本层不再判断该不该改。 */
+async function updateById(id, patch) {
+  const rows = await gateway.request('/v1/rdb/rest/cards?id=eq.' + id + '&select=' + FIELDS, {
+    method: 'PATCH',
+    prefer: 'return=representation',
+    body: patch,
+  });
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+/* 删除（Day 22）：同样要求把**被删掉的那一行**返回来。
+ * 为什么非要它：不要求返回时，网关对「删掉了」和「id 不存在」都给 204 空体，
+ * 上层就分不清「删成功」和「白删一场」——这正是「删不存在的 id 却报成功」这种防呆漏洞的来源。
+ * 返回整行还有个副产品：接口能告诉调用方「刚删掉的是哪张卡」，前端可以据此提示与撤销。 */
+async function removeById(id) {
+  const rows = await gateway.request('/v1/rdb/rest/cards?id=eq.' + id + '&select=' + FIELDS, {
+    method: 'DELETE',
+    prefer: 'return=representation',
+  });
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+}
+
+/* 防重复用：同科目 + 同题面视为同一张卡（判定标准见 api-contract.md 4.）
+ * Day 22 起 PATCH 改题面时也要用它——唯一性口径在「写」和「改」两条路上必须一致。 */
 async function findBySubjectFront(subject, front) {
   const rows = await gateway.request('/v1/rdb/rest/cards?' + gateway.qs({
     select: 'id,subject,front',
@@ -69,5 +97,7 @@ module.exports = {
   list: list,
   getById: getById,
   create: create,
+  updateById: updateById,
+  removeById: removeById,
   findBySubjectFront: findBySubjectFront,
 };

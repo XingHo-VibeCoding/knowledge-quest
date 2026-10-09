@@ -6,11 +6,12 @@
 <title>云端数据检查台 · 知识闯关</title>
 <link rel="icon" href="data:,">
 <!-- Day 20：这个页面存在的唯一目的，是「让任何人打开链接都能自己确认数据是真的」。
-     它做四件事，每件都直接对应教材的一项检测：
+     它做五件事，每件都直接对应教材的一项检测：
        ① 接口健康      → 三件套检测里的「健康接口返回 ok:true」
        ② 真实数据      → 真数据检测（读的是数据库，不是本地文件）
        ③ 写入测试      → 三件套检测里的「页面上完成一次写入并刷新仍在」
        ④ 请求去向      → 请求去向检测（F12 那条请求是不是公网地址）
+       ⑤ 修改与删除    → Day 22 新增：PATCH 改前/改后并排对照、DELETE 两步确认 + 删完列表里消失
      接口地址来自 ../js/config.js，全站只有那一处定义。 -->
 <style>
   :root {
@@ -102,6 +103,29 @@
   button.primary:hover:not(:disabled) { box-shadow: 0 10px 22px -8px rgba(79,70,229,.8); }
   button:disabled { opacity: .55; cursor: not-allowed; }
 
+  /* Day 22：删除是不可逆操作，按钮要有「危险」的样子，且必须有第二条确认状态 */
+  button.danger { border-color: #fecaca; color: #b91c1c; }
+  button.danger:hover:not(:disabled) { background: #fff1f2; border-color: #fca5a5; }
+  button.danger.armed {
+    background: #dc2626; border-color: transparent; color: #fff;
+    box-shadow: 0 6px 16px -8px rgba(220,38,38,.75);
+  }
+  .id-input, .fl input, textarea {
+    font: inherit; font-size: 12.5px; padding: 8px 10px; border-radius: 10px;
+    border: 1px solid #cdd0e8; color: var(--ink-strong); background: #fff;
+  }
+  .id-input { width: 156px; }
+  textarea { width: 100%; resize: vertical; line-height: 1.6; }
+  .fl { display: block; font-size: 11.5px; color: var(--ink-muted); margin: 9px 0 0; }
+  .fl input { display: block; width: 148px; margin-top: 4px; }
+  .delta { font-size: 12px; line-height: 1.8; }
+  .delta .old { color: #b91c1c; text-decoration: line-through; }
+  .delta .new { color: #15803d; font-weight: 700; }
+  .warnbox {
+    margin-top: 10px; padding: 9px 11px; border-radius: 10px; font-size: 11.5px; line-height: 1.7;
+    background: #fff7ed; border: 1px solid #fed7aa; color: #7c2d12;
+  }
+
   .msg { font-size: 12px; line-height: 1.6; margin-top: 8px; }
   .msg.ok { color: #14532d; }
   .msg.bad { color: #7f1d1d; }
@@ -121,7 +145,7 @@
   <div class="wrap top-row">
     <div>
       <h1>🔍 云端数据检查台</h1>
-      <p class="sub">知识闯关 · 检查 CloudBase 云函数 <code>api</code>：健康状态 / 数据库真实数据 / 写入链路 / 请求去向</p>
+      <p class="sub">知识闯关 · 检查 CloudBase 云函数 <code>api</code>：健康状态 / 数据库真实数据 / 写入链路 / 请求去向 / 改与删</p>
     </div>
     <div class="clock">
       <b id="clock">—</b>
@@ -180,7 +204,7 @@
     <h2><span class="no">3</span>写入测试 <span id="writeBadge" class="badge wait">未测试</span></h2>
     <p class="hint">
       POST <code class="mono">/api/cards</code> —— 点第一下写一条新卡；<b>再点一下是同一条内容</b>，服务端应回 <code class="mono">409</code>（证明「同科目同题面只存一张」这条规则真的在服务端生效，不是前端假装的）。
-      ⚠️ 测试行会真的进库，<code class="mono">DELETE</code> 接口按计划 Day 22 才做，暂时删不掉。
+      Day 22 起这些测试行<b>可以删掉了</b>：写完之后把它的 id 填到下面第 5 块的输入框里删掉即可，不留垃圾。
     </p>
     <div class="actions">
       <button id="btnWrite" class="primary" type="button">写入一条测试卡</button>
@@ -188,6 +212,45 @@
     </div>
     <pre id="writeJson" class="one">尚未测试</pre>
     <p id="writeMsg" class="msg plain">—</p>
+  </section>
+
+  <!-- ⑤ 修改与删除（Day 22 新增） -->
+  <section class="card">
+    <h2><span class="no">5</span>修改与删除 <span id="editBadge" class="badge wait">未测试</span></h2>
+    <p class="hint">
+      <code class="mono">PATCH /api/cards/:id</code> 改一条，<code class="mono">DELETE /api/cards/:id</code> 删一条。
+      可改字段只有 <code class="mono">front / back / sub / level</code> 四个（其余是服务端记账字段，提交会被明确拒绝）；
+      删除只允许 <code class="mono">source=user</code> 的自建卡，内置卡回 <code class="mono">403</code>。
+    </p>
+    <div class="actions">
+      <input id="editId" class="id-input" type="number" min="1" placeholder="卡片 id，例如 37">
+      <button id="btnLoad" type="button">1. 读取该行</button>
+      <button id="btnTryMissing" type="button">拿不存在的 id 试一次（99999）</button>
+    </div>
+    <div class="kv" style="margin:8px 0 4px">
+      <div><span class="k">库里现值</span><b id="beforeBack">—</b></div>
+      <div><span class="k">当前难度</span><b id="beforeLevel">—</b></div>
+    </div>
+    <label class="fl">新答案（写入 <code class="mono">back</code>）
+      <textarea id="newBack" rows="2" placeholder="先点「读取该行」，这里会自动填上当前值"></textarea>
+    </label>
+    <label class="fl">新难度（<code class="mono">level</code> 1~3，留空 = 这一项不改）
+      <input id="newLevel" type="number" min="1" max="3" placeholder="留空 = 不改">
+    </label>
+    <div class="actions">
+      <button id="btnPatch" class="primary" type="button">2. 提交修改（PATCH）</button>
+      <button id="btnDelete" class="danger" type="button">3. 删除这一条（DELETE）</button>
+      <button id="btnEditReset" type="button">清空</button>
+    </div>
+    <pre id="editJson">尚未测试</pre>
+    <p id="editMsg" class="msg plain">—</p>
+    <div class="delta" id="editDelta" style="display:none"></div>
+    <div class="warnbox">
+      <b>⚠️ 删除是唯一不可逆的操作，所以这里有三层防呆：</b>
+      ① 按钮必须先点一次变成「确认删除 id=N？（10 秒内有效）」，<b>第二次点击才真的发请求</b>；
+      ② 服务端还有一道 <code class="mono">source</code> 护栏——内置卡一律 403，删不掉；
+      ③ 删不存在的 id 回 <code class="mono">404</code> 而不是「成功」，不给假成功留空子。
+    </div>
   </section>
 </main>
 
@@ -213,7 +276,12 @@
     lastWrite: null,   // 最近一次提交的 payload（第二下复用它 → 期望 409）
     lastWriteResult: null, // 最近一次写入的响应（状态码 + 返回体）
     calls: [],         // 本页真实发起过的每一次接口调用（方法/地址/状态/耗时）
-    dests: []
+    dests: [],
+    /* Day 22：改 / 删 的证据位 */
+    edit: { id: null, before: null, after: null, confirm: null, timer: null, source: null },
+    lastPatch: null,
+    lastDelete: null,
+    lastMissing: null
   };
 
   /* 所有请求都从这里走 —— 这样「请求去向」面板拿到的是真实的方法与状态码，
@@ -438,6 +506,208 @@
       });
   }
 
+  /* ＝＝＝ ⑤ 修改（PATCH）与删除（DELETE）—— Day 22 ＝＝＝
+   * 这一块的设计原则：每一步都要「看得见」。
+   *   改：先 GET 出库里现值 → 显示在页面上 → PATCH → 自动把「改前 → 改后」并排列出来；
+   *   删：两步确认 → DELETE → 自动刷新第 2 块列表，用「它消失了」当场自证。
+   */
+  function errText(res) {
+    return (res.body && res.body.error && res.body.error.message) || ('HTTP ' + res.status);
+  }
+  function targetId() {
+    var v = $('editId').value.trim();
+    return v === '' ? null : v;
+  }
+
+  function loadEditRow() {
+    var id = targetId();
+    if (id === null) { msg($('editMsg'), 'bad', '先在上面填一个卡片 id —— 第 2 块列表里的 id 直接抄一个过来就行。'); return Promise.resolve(); }
+    badge($('editBadge'), 'wait', '⏳ 读取中');
+    msg($('editMsg'), 'plain', 'GET ' + API + '/cards/' + id + ' …');
+    return apiFetch('GET', '/cards/' + id).then(function (res) {
+      $('editJson').textContent = 'HTTP ' + res.status + '\n' + JSON.stringify(res.body, null, 2);
+      if (res.status !== 200) {
+        state.edit = { id: null, before: null, after: null, confirm: null };
+        $('beforeBack').textContent = '—';
+        $('beforeLevel').textContent = '—';
+        badge($('editBadge'), 'bad', '❌ HTTP ' + res.status);
+        msg($('editMsg'), 'bad', '读不到这一行：' + errText(res) + '（id 不存在时接口就该回 404，这是正确行为，不是故障）');
+        paintDest();
+        return;
+      }
+      var row = res.body.data;
+      state.edit = { id: row.id, before: { back: row.back, level: row.level }, after: null, confirm: null, source: row.source };
+      disarmDelete();
+      $('beforeBack').textContent = row.back;
+      $('beforeLevel').textContent = row.level;
+      $('newBack').value = row.back;
+      $('newLevel').value = '';
+      $('editDelta').style.display = 'none';
+      badge($('editBadge'), 'ok', '✅ 读到 id=' + row.id +
+        (row.source === 'user' ? '（自建卡：可改可删）' : '（' + row.source + ' 内置卡：可改不可删）'));
+      msg($('editMsg'), 'ok', '这是数据库里的现值。改内容 → 点「2. 提交修改」；要删掉 → 点「3. 删除这一条」（会先问你一次）。');
+      touchUpdated(new Date());
+      paintDest();
+    }).catch(function (e) {
+      badge($('editBadge'), 'bad', '❌ 请求失败');
+      msg($('editMsg'), 'bad', '请求发不出去：' + e.message);
+      throw e;
+    });
+  }
+
+  function patchRow() {
+    var id = targetId();
+    if (id === null) { msg($('editMsg'), 'bad', '先填卡片 id 再提交修改。'); return Promise.resolve(); }
+    var body = {};
+    if ($('newBack').value.trim() !== '') body.back = $('newBack').value;
+    if ($('newLevel').value.trim() !== '') body.level = Number($('newLevel').value.trim());
+    if (!Object.keys(body).length) { msg($('editMsg'), 'bad', '没有要改的内容：至少填「新答案」或「新难度」（空 patch 会被服务端拒绝，这里先拦一道）。'); return Promise.resolve(); }
+
+    $('btnPatch').disabled = true;
+    badge($('editBadge'), 'wait', '⏳ 提交中');
+    msg($('editMsg'), 'plain', 'PATCH ' + API + '/cards/' + id + ' …');
+    return apiFetch('PATCH', '/cards/' + id, body).then(function (res) {
+      $('btnPatch').disabled = false;
+      state.lastPatch = { id: id, sent: body, status: res.status, body: res.body };
+      $('editJson').textContent = 'PATCH /cards/' + id + ' → HTTP ' + res.status + '\n' + JSON.stringify(res.body, null, 2);
+      if (res.status === 200 && res.body && res.body.ok === true) {
+        var after = { back: res.body.data.back, level: res.body.data.level };
+        state.edit.after = after;
+        var lines = [];
+        var b = state.edit.before;
+        if (b && b.back !== after.back) {
+          lines.push('<div>答案：<span class="old">' + esc(b.back) + '</span><br>　　　→ <span class="new">' + esc(after.back) + '</span></div>');
+        }
+        if (b && String(b.level) !== String(after.level)) {
+          lines.push('<div>难度：<span class="old">Lv.' + b.level + '</span> → <span class="new">Lv.' + after.level + '</span></div>');
+        }
+        var d = $('editDelta');
+        if (lines.length) {
+          d.innerHTML = '<div style="color:#5f6470;margin-bottom:4px">改前 → 改后（接口返回的就是改完之后的那一行）：</div>' + lines.join('');
+          d.style.display = 'block';
+        } else {
+          d.innerHTML = '<div style="color:#5f6470">提交成功，但字段值跟你填的一样（没有实质变化）。</div>';
+          d.style.display = 'block';
+        }
+        badge($('editBadge'), 'ok', '✅ 修改成功 · id=' + id);
+        msg($('editMsg'), 'ok', '服务端返回的是**改完之后的那一行**，上面就是它。要确认不是页面自作多情，刷新页面重读一次——值还在。');
+        touchUpdated(new Date());
+        paintDest();
+        return loadCards().catch(function () {});
+      }
+      // 失败路径：把「服务端凭什么拒绝」原话摆出来
+      badge($('editBadge'), 'bad', '❌ HTTP ' + res.status + ' ' + (res.body && res.body.error ? res.body.error.code : ''));
+      msg($('editMsg'), 'bad', '接口拒绝了这次修改（HTTP ' + res.status + '）：' + errText(res));
+      paintDest();
+      return res;
+    }).catch(function (e) {
+      $('btnPatch').disabled = false;
+      badge($('editBadge'), 'bad', '❌ 请求失败');
+      msg($('editMsg'), 'bad', '请求发不出去：' + e.message);
+      throw e;
+    });
+  }
+
+  /* 两步删除：第一次点击只「上膛」，第二次才开火。
+     上膛状态由按钮文案 + 颜色 + 倒计时三重表达，任何一步都不靠用户猜。 */
+  var ARMED_MS = 10000;
+  function disarmDelete() {
+    clearTimeout(state.edit && state.edit.timer);
+    var b = $('btnDelete');
+    if (!b) return;
+    b.classList.remove('armed');
+    b.textContent = '3. 删除这一条（DELETE）';
+    if (state.edit) state.edit.confirm = null;
+  }
+  function deleteRow() {
+    var id = targetId();
+    if (id === null) { msg($('editMsg'), 'bad', '先填卡片 id 再删。'); return Promise.resolve(); }
+
+    if (!(state.edit && state.edit.confirm && state.edit.confirm.id === id)) {
+      state.edit = state.edit || {};
+      state.edit.confirm = { id: id, at: new Date().toISOString(), clicked: 1 };
+      var b = $('btnDelete');
+      b.classList.add('armed');
+      b.textContent = '⚠️ 确认删除 id=' + id + '？再点一次（' + (ARMED_MS / 1000) + ' 秒内有效）';
+      msg($('editMsg'), 'plain', '这是第 1 次点击 —— 还没有发出任何请求。' + (ARMED_MS / 1000) + ' 秒内再点一次，才会真的删掉这张卡。');
+      $('editJson').textContent = '删除是两步确认：第 1 次点击只上膛，不发请求。';
+      state.edit.timer = setTimeout(disarmDelete, ARMED_MS);
+      return Promise.resolve();
+    }
+
+    disarmDelete();
+    badge($('editBadge'), 'wait', '⏳ 删除中');
+    msg($('editMsg'), 'plain', 'DELETE ' + API + '/cards/' + id + ' …');
+    return apiFetch('DELETE', '/cards/' + id).then(function (res) {
+      state.lastDelete = { id: id, status: res.status, body: res.body };
+      $('editJson').textContent = 'DELETE /cards/' + id + ' → HTTP ' + res.status + '\n' + JSON.stringify(res.body, null, 2);
+      if (res.status === 200 && res.body && res.body.ok === true) {
+        var gone = res.body.data;
+        badge($('editBadge'), 'ok', '✅ 已删除 id=' + id);
+        msg($('editMsg'), 'ok', '删掉的是 id=' + id + '「' + esc(String(gone.front).slice(0, 26)) + '」。第 2 块列表马上重新读一次 —— 它应该已经不在里面了；' +
+          '要更硬的证据就去控制台 select 一次，或者再点「1. 读取该行」看它回 404。');
+        $('beforeBack').textContent = '（这张卡已被删除）';
+        $('beforeLevel').textContent = '—';
+        $('editDelta').style.display = 'none';
+        touchUpdated(new Date());
+        paintDest();
+        return loadCards().catch(function () {});
+      }
+      if (res.status === 403) {
+        badge($('editBadge'), 'bad', '❌ 403 不允许删除');
+        msg($('editMsg'), 'bad', '服务端拦下了：' + errText(res) + ' —— 这是**正确行为**（内置卡删了要靠重灌种子才能回来），护栏在服务端，不靠前端自觉。');
+      } else if (res.status === 404) {
+        badge($('editBadge'), 'bad', '❌ 404 没有这条');
+        msg($('editMsg'), 'bad', '这个 id 本来就不存在：' + errText(res) + ' —— 删不存在的记录回 404 而不是「成功」，正是今天要验的防呆。');
+      } else {
+        badge($('editBadge'), 'bad', '❌ HTTP ' + res.status);
+        msg($('editMsg'), 'bad', '删除没成功：' + errText(res));
+      }
+      paintDest();
+      return res;
+    }).catch(function (e) {
+      badge($('editBadge'), 'bad', '❌ 请求失败');
+      msg($('editMsg'), 'bad', '请求发不出去：' + e.message);
+      throw e;
+    });
+  }
+
+  /* 防呆检测（教材第 3 条）：拿一个不存在的 id，把 PATCH 和 DELETE 各打一次，
+     两条都必须是「说得清的中文错误」，且页面不崩。 */
+  function tryMissing() {
+    var MISS = '99999';
+    function missLine(verb, res) {
+      var code = (res.body && res.body.error && res.body.error.code) || '-';
+      var msg = (res.body && res.body.error && res.body.error.message) || '';
+      return verb + ' /cards/' + MISS + ' → HTTP ' + res.status + ' ' + code + '\n    ' + msg;
+    }
+    $('editId').value = MISS;
+    badge($('editBadge'), 'wait', '⏳ 防呆检测中');
+    msg($('editMsg'), 'plain', '对 id=' + MISS + ' 各发一次 PATCH 与 DELETE …');
+    var out = {};
+    return apiFetch('PATCH', '/cards/' + MISS, { back: '这条 id 根本不存在' })
+      .then(function (r1) {
+        out.PATCH = { status: r1.status, body: r1.body };
+        return apiFetch('DELETE', '/cards/' + MISS);
+      })
+      .then(function (r2) {
+        out.DELETE = { status: r2.status, body: r2.body };
+        state.lastMissing = out;
+        // 输出刻意写成紧凑的「一行一条」，而不是整段 JSON ——
+        // 证据要能一屏看完，滚动截图里的关键字段被截掉就等于没写。
+        $('editJson').textContent = missLine('PATCH', r1) + '\n' + missLine('DELETE', r2);
+        var ok = out.PATCH.status === 404 && out.DELETE.status === 404 &&
+                 out.PATCH.body && out.PATCH.body.ok === false && out.DELETE.body && out.DELETE.body.ok === false;
+        badge($('editBadge'), ok ? 'ok' : 'bad', ok ? '✅ 防呆通过 · 两条都 404' : '❌ 防呆异常');
+        msg($('editMsg'), ok ? 'ok' : 'bad', ok
+          ? ('不存在的 id：PATCH 回 404 ' + out.PATCH.body.error.code + '、DELETE 回 404 ' + out.DELETE.body.error.code +
+             '，两条都是明确的中文错误、都不是 500 裸报错，页面也没崩。')
+          : '有接口对不存在的 id 返回了非 404，这就是防呆漏洞（尤其「删不存在的数据却报成功」）。');
+        paintDest();
+        return out;
+      });
+  }
+
   /* 事件 */
   $('btnHealth').addEventListener('click', function () { checkHealth().catch(function () {}); });
   $('btnReload').addEventListener('click', function () { loadCards().catch(function () {}); });
@@ -447,6 +717,28 @@
     badge($('writeBadge'), 'wait', '已换新内容');
     $('writeJson').textContent = '已清掉上一条，下一次点击会写一条全新内容（预期 201）';
     msg($('writeMsg'), 'plain', '下一条会用新的时间戳，所以不会撞重复。');
+  });
+
+  /* Day 22：改 / 删 面板 */
+  $('btnLoad').addEventListener('click', function () { loadEditRow().catch(function () {}); });
+  $('btnPatch').addEventListener('click', function () { patchRow().catch(function () {}); });
+  $('btnDelete').addEventListener('click', function () { deleteRow().catch(function () {}); });
+  $('btnTryMissing').addEventListener('click', function () { tryMissing().catch(function () {}); });
+  $('btnEditReset').addEventListener('click', function () {
+    disarmDelete();
+    state.edit = { id: null, before: null, after: null, confirm: null, timer: null, source: null };
+    $('editId').value = '';
+    $('newBack').value = '';
+    $('newLevel').value = '';
+    $('beforeBack').textContent = '—';
+    $('beforeLevel').textContent = '—';
+    $('editDelta').style.display = 'none';
+    $('editJson').textContent = '已清空。填一个 id → 点「1. 读取该行」开始。';
+    badge($('editBadge'), 'wait', '未测试');
+    msg($('editMsg'), 'plain', '—');
+  });
+  $('editId').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); loadEditRow().catch(function () {}); }
   });
 
   /* 首屏自动跑一遍：健康 + 数据（写入必须手动点，免得无意中往库里塞行） */
@@ -463,6 +755,15 @@
       cardIds: state.cards ? state.cards.data.map(function (c) { return c.id; }) : [],
       lastWrite: state.lastWrite,
       lastWriteResult: state.lastWriteResult,
+      /* Day 22 */
+      editTarget: state.edit ? state.edit.id : null,
+      patchBefore: state.edit ? state.edit.before : null,
+      patchAfter: state.edit ? state.edit.after : null,
+      deleteArmed: !!(state.edit && state.edit.confirm),
+      deleteArmedTarget: state.edit && state.edit.confirm ? state.edit.confirm.id : null,
+      lastPatch: state.lastPatch,
+      lastDelete: state.lastDelete,
+      lastMissing: state.lastMissing,
       destinations: state.dests,
       localhostHits: state.dests.filter(function (u) { return /localhost|127\.0\.0\.1/.test(u); }),
       updated: $('updated').textContent

@@ -6,6 +6,9 @@
  * Day 18：POST /api/cards、POST /api/quiz-records —— 第一个业务写入接口：校验 → 防重复 → 写库 → 读回。
  * Day 19：分层重构——本文件瘦身为纯入口层，数据库代码拆进 repositories/，业务规则拆进 services/。
  *         重构只「搬家」不「添家具」：路由、状态码、响应形状、报错文案逐字节未变（31 条快照比对通过）。
+ * Day 22：PATCH /api/cards/:id、DELETE /api/cards/:id —— 改一条、删一条，数据操作闭环补齐。
+ *         入口层只做两件事：认出这两个方法（含 CORS 预检里放行 PATCH）、把结果翻成响应形状；
+ *         「能不能改、能不能删」全在 services/cardsService.js 里判。
  *
  * 【三层各管什么】Day 19
  *   入口层（本文件）        HTTP：路由分发、path 归一化、状态码与响应形状、CORS、服务端日志
@@ -26,10 +29,11 @@ const quizRecordsService = require('./services/quizRecordsService.js');
 
 const SERVICE = 'knowledge-quest';
 
-/* 契约里已登记、尚未实现的路径 → 计划实现日（按 api-contract.md 第三章） */
-const REGISTERED_BUT_NOT_IMPLEMENTED = new Map([
-  ['DELETE /api/cards', 'Day 22'],
-]);
+/* 契约里已登记、尚未实现的路径 → 计划实现日（按 api-contract.md 第三章）
+ * Day 22 把这最后一条（DELETE /api/cards）实现掉了，所以映射表当前为空。
+ * 保留这张表和下面的判断，是因为它表达的是契约纪律：路径一旦写进 api-contract.md，
+ * 在实现之前也必须返回 501 NOT_IMPLEMENTED（说清「哪天做」），而不是 404 冒充「没这回事」。 */
+const REGISTERED_BUT_NOT_IMPLEMENTED = new Map([]);
 
 /* ＝＝＝ 响应形状（统一 { ok, data, error }）＝＝＝ */
 
@@ -72,7 +76,10 @@ const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;              
 
 function corsHeaders(event) {
   const h = {
-    'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+    // ⚠️ Day 22 记一笔：这个头是「预检放行清单」。PATCH 是**非简单方法**，浏览器发它之前一定先发
+    //    OPTIONS 预检；清单里没有 PATCH，浏览器就直接把请求掐在本地（页面报跨域错，请求根本到不了云函数）。
+    //    症状很有迷惑性——接口用 curl 测一切正常，只有页面上不行。改方法就顺手改这里。
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
   };
@@ -146,6 +153,14 @@ exports.main = async function (event) {
       out = respond(r, 200);
     } else if (path === '/api/cards' && method === 'POST') {
       out = respond(await cardsService.create(event), 201);
+    } else if (path.match(/^\/api\/cards\/[^/]+$/) && method === 'PATCH') {
+      // 改一条（Day 22）：id 从路径里取，改哪些字段从请求体里取
+      const r = await cardsService.update(path.match(/^\/api\/cards\/([^/]+)$/)[1], event);
+      out = respond(r, 200);
+    } else if (path.match(/^\/api\/cards\/[^/]+$/) && method === 'DELETE') {
+      // 删一条（Day 22）：成功回 200 + 被删掉的那一行（不是 204 空体，理由见 repository 注释）
+      const r = await cardsService.remove(path.match(/^\/api\/cards\/([^/]+)$/)[1]);
+      out = respond(r, 200);
     } else if (path === '/api/quiz-records' && method === 'GET') {
       const r = await quizRecordsService.list(event);
       out = respond(r, 200, r.ok ? { count: r.data.length } : null);

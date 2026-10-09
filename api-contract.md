@@ -13,7 +13,8 @@
 | 浏览卡片列表（含科目筛选、关键词搜索） | `GET /api/cards`（支持 `subject`、`q` 查询参数） |
 | 打开卡片详情页（`#/card/:id`，含同科目相关卡） | `GET /api/cards/:id` |
 | 「＋ 添加卡片」录入新卡（Day 18 起直接写进真库） | `POST /api/cards` ✅ |
-| 删除自存卡（现在删 localStorage） | `DELETE /api/cards/:id` |
+| 修改自己加的卡（改答案 / 难度 / 子分类 / 题面） | `PATCH /api/cards/:id` ✅ |
+| 删除自己加的卡（Day 22 起改为真删库；此前只删本机 localStorage） | `DELETE /api/cards/:id` ✅ |
 | 查看闯关最佳战绩（现在存 localStorage） | `GET /api/quiz-records` |
 | 闯关结束后写入战绩（现在只存本机） | `POST /api/quiz-records` |
 
@@ -110,19 +111,35 @@
 - 成功：`201 { "ok": true, "data": { id, subject, sub, type, level, front, back, source: "user", created_at } }` —— 返回的是**数据库写入后的真实行**（含库分配的 `id` 与库生成的 `created_at`）
 - 错误：`400 { code:"VALIDATION_ERROR", message:"缺少必填字段「题面」" ｜ "「科目」太长了：最多 8 个字，现在有 9 个字" ｜ "「难度」要在 1~3 之间，现在填的是 5" }`；`409 { code:"DUPLICATE_CARD", message:"这张卡已经存在了（口语 · id 29）：同一科目下题面相同的卡只存一张" }`；`500 { code:"DB_ERROR" }`
 
-### 5. `DELETE /api/cards/:id` 🔮 Day 22 实现（第 4 周）
+### 5. `PATCH /api/cards/:id` ✅ 已实现（Day 22）
 
-- 请求参数：路径参数 `id`
-- 成功：`200 { "ok": true, "data": { id } }`
-- 错误：`404 { code:"CARD_NOT_FOUND" }`；`403 { code:"NOT_DELETABLE", message:"mock 卡不可删除" }`
+- 请求参数：路径参数 `id`（正整数）
+- 请求体（JSON）：`{ front?, back?, sub?, level? }` —— **可改字段只有这四个，且至少要给一个**
+- **不可改字段**（出现即报错，**不静默忽略**）：`id`（数据库主键）、`subject`（科目——改它等于换了张卡，历史战绩与筛选口径都会跟着飘）、`type`（分类骨架）、`source`（服务端记账字段）、`created_at`（服务端生成）
+- 校验口径：与 `POST /api/cards` **完全同一套**（长度按 Unicode 码点计、`level` 限 1~3、错误信息为中文并指明是哪个字段不合规）
+- **防重复**：改 `front` 后若与**同一 `subject` 下另一张卡**的 `front` 相同 → `409`；把 `front` 填成原值（等于没变）不算重复
+- 成功：`200 { "ok": true, "data": { id, subject, sub, type, level, front, back, source, created_at } }` —— 返回的是**改完的真实行**（return=representation），前端不必再 GET 一次
+- 错误：`400 BAD_ID`（id 非正整数）／`404 CARD_NOT_FOUND`（id 不存在）／`400 EMPTY_PATCH`（空请求体）／`400 IMMUTABLE_FIELD`（夹带不可改字段）／`400 UNKNOWN_FIELD`（不认识的字段）／`400 VALIDATION_ERROR`／`409 DUPLICATE_CARD`／`500 DB_ERROR`
+- **对内只读卡（`source=mock`）不设限制（Day 22 定）**：改是可逆的（改回来即可），护栏留给不可逆的操作。种子卡允许修正答案与难度。
 
-### 6. `GET /api/quiz-records` ✅ 已实现（Day 17）
+### 6. `DELETE /api/cards/:id` ✅ 已实现（Day 22）
+
+- 请求参数：路径参数 `id`（正整数）
+- 成功：`200 { "ok": true, "data": { id, subject, sub, type, level, front, back, source, created_at } }` —— 返回的是**被删掉的那一整行**（留作操作凭据）
+- 错误：`400 BAD_ID`（id 非正整数）／`404 CARD_NOT_FOUND`（id 不存在，**绝不返回 200 假成功**）／`403 NOT_DELETABLE`（`source !== 'user'` 的内置卡不可删：删掉就得重灌种子数据）
+- **三层护栏（各管一段，缺一不可）**：
+  1. **服务端只读卡保护**——`source=mock` 一律 `403`，护栏在最里面，绕过前端也拦得住；
+  2. **存在性校验**——查不到就 `404`，不给「假成功」留空子；
+  3. **前端二次确认**——不可逆操作要求用户点两次（见 `tools/checkup.html` 的两步删除按钮）。
+- **与战绩表的关系**：`quiz_records.card_ids` 是**弱关联**，历史战绩里可能留着这张卡的 id；删卡后战绩不跟着变（这正是 Day 16 选弱关联的原因），故 `card_ids` 允许出现已不存在的 id。
+
+### 7. `GET /api/quiz-records` ✅ 已实现（Day 17）
 
 - 请求参数：`limit`（默认 10，按 date 倒序）
 - 成功：`200 { "ok": true, "count": <n>, "data": [ { id, score, total, card_ids, date, created_at }, ... ] }`
 - 错误：同通用错误形状
 
-### 7. `POST /api/quiz-records` ✅ 已实现（Day 18）
+### 8. `POST /api/quiz-records` ✅ 已实现（Day 18）
 
 - 请求体（JSON）：`{ score, total, card_ids?, date }` —— `score`/`total`/`date` 必填；`card_ids` 可选（本轮抽中的卡片 id 数组，缺省为空数组）；`0 ≤ score ≤ total ≤ 100`；`date` 为 `YYYY-MM-DD`
 - **防重复判定（Day 18 定）**：同一天 + 同分数 + 同题数 + **同一批卡 id**（顺序也一致）= 同一条战绩，只记一次（对应打卡示例里「同一天同一计划项不重复打卡」）。命中时返回 `409`。
@@ -130,11 +147,14 @@
 - 错误：`400 { code:"VALIDATION_ERROR", message:"缺少必填字段「日期」" ｜ "「日期」要写成 YYYY-MM-DD 的样子，例如 2026-10-05，现在收到的是「2026/10/05」" ｜ "答对数不能大于总题数（score=9 大于 total=5）" ｜ "「抽中的卡 id」里出现了不是正整数的值：-2" }`；`409 { code:"DUPLICATE_RECORD" }`
 - **前端接线状态（Day 18）**：接口已可用，但**前端还没接**——闯关页目前仍只把最佳战绩写在本机（`kq_best_score`）。改动涉及「每轮结束 POST 一条 + 最佳战绩改由 `GET /api/quiz-records` 取最大值」，和 Day 18 主任务（写接口本身）不是一回事，留到前端收敛那天一并做，免得两件事混在一次提交里说不清。
 
-## 四、明确不做（第 3 周范围外）
+## 四、明确不做（截至 Day 22）
 
 - 用户账号/登录（本项目自用数据，不做多用户隔离）
-- 卡片修改（PATCH）——如需要列入第 4 周
+- **批量操作**（批量改 / 批量删）——Day 22 教材明确划出范围；单条接口已足够，批量会让「一次失误影响面」变大，等真有需求再谈
+- **软删除**（只在记录上打 `is_deleted` 标记、查询时跳过）——Day 22 归入「余力加练」，本次未做，登记为待办；真要做时，接口形状不变，改的是 `remove` 的语义与所有查询的过滤条件
 - 定时任务、外部数据源接入
+
+> 已从本清单移出：**卡片修改（PATCH）**——Day 22 已实现，见第三章第 5 节。
 
 ## 五、变更记录
 
@@ -146,6 +166,7 @@
 | Day 17 补充（2026-10-04） | 新增「部署后怎么访问」实测结论：网关强制 `content-disposition: attachment`，浏览器直开接口地址会下载而非显示 JSON；公网可读入口改由 Pages 上的 `tools/api-live.html` 承担 | 接口与契约形状零改动，仅补访问方式说明；已回退三次无效尝试的代码 |
 | Day 19（2026-10-06） | **接口形状零改动**——本次是纯结构重构（把数据库代码从接口里拆进数据访问层），按规矩在变更记录里留档说明「契约未受影响」：7 个接口的路径、方法、请求体、响应形状、错误码全部逐字节不变 | 重构验收即回归：31 条用例快照重构前后 **MD5 完全相同**（本地 + 公网各跑一遍），写接口回归 28/28；路由表逐条对照零新增。契约文档本身仅新增本行 |
 | Day 20（2026-10-06） | **接口形状零改动**——本次是前端换心脏（页面请求目标从本地 `data/quest-cards.json` 改为公网接口），后端未改一行。后端侧唯一变化是「被调用」；前端侧新增 `js/config.js`（接口地址唯一收敛点 `KQ_CONFIG.API_BASE`）与 `tools/checkup.html`（云端数据检查台） | 第 3 周主线要求「拿到一个可分享的公网 URL，页面展示真实数据」。已实测：公网首页 1 条请求、检查台 4 条请求全部指向公网地址，本机地址 0 条；页面外改库后刷新内容跟着变（真数据验证）；写入仍走既有 `POST /api/cards`，201/409 行为不变 |
+| Day 22（2026-10-09） | **接口形状变更**（本契约第 4 周第一次真改形状）：① 新增 `PATCH /api/cards/:id`；② `DELETE /api/cards/:id` 由 `🔮 第 4 周` 转为**已实现**，并把成功响应从原先草案的 `data:{ id }` 改成 **返回被删掉的一整行**（草案时期未定，按 Day 22 实测口径定稿）；③ CORS `Access-Control-Allow-Methods` 增加 `PATCH`（否则浏览器预检就把请求掐了）；④ 「卡片修改（PATCH）」从第四章「明确不做」移出，「批量操作」「软删除」补入 | 第 4 周主线：数据从「只能加」变成「能改能删」。按规矩先改本文档再改代码。回归证据：Day 19 的 31 条只读快照用例**保持条数不变**重跑一遍，仅 **2 条**行为有变（且正是本次实现的接口留下的占位用例——`DELETE /api/cards` 集合级 `501→404`、`DELETE /api/cards/5` 内置卡 `501→403`），其余 **29 条逐字节一致**；本地代码与线上部署那两份 31 条结果 md5 相同。新增接口自身的行为验证 30 条用例（本地 / 公网各跑一遍，全绿，无 5xx）见 `docs/day22-checkin.md` |
 
 > 核对方法：`information_schema.columns` 拉真实表结构 + `pg_constraint` 拉真实约束，与本文档字段清单逐条对齐；结论见 `docs/day16-contract-check.md`。
 
