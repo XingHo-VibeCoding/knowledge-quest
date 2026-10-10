@@ -184,10 +184,12 @@
   <!-- ② 真实数据 -->
   <section class="card">
     <h2><span class="no">2</span>真实数据 · <code class="mono">cards</code> 表 <span id="dataBadge" class="badge wait">⏳ 待检测</span></h2>
-    <p class="hint">GET <code class="mono">/api/cards?limit=5</code> —— 读的是云端数据库。想看「数据在动」，去 CloudBase 控制台改一条，再点下面的按钮。</p>
+    <p class="hint">GET <code class="mono">/api/cards?limit=200</code> —— 读的是云端数据库，一次读满上限。想看「数据在动」，去 CloudBase 控制台改一条，再点下面的按钮。</p>
+    <!-- Day 24 修复（Bug #2）：以前这里写「库内总行数（count 字段）」，但接口的 count 按契约是<b>本页条数</b>
+         （api-contract.md 第 63 行），公式=limit 后的行数 —— 库里 26 行、页面却写 5 行。改成按实际读到的条数计。 -->
     <div class="kv" style="margin-bottom:10px">
-      <div><span class="k">库内总行数</span><b id="totalRows">—</b>（<code class="mono">count</code> 字段）</div>
-      <div><span class="k">库内最新一条</span><b id="newestRow">—</b>（<code class="mono">created_at</code> 最大值）</div>
+      <div><span class="k">库内总行数</span><b id="totalRows">—</b>（按本次实际读到的条数计，读取上限 <code class="mono">limit=200</code>）</div>
+      <div><span class="k">库内最新一条</span><b id="newestRow">—</b>（在<b>全部读到的行</b>里取 <code class="mono">created_at</code> 最大值）</div>
     </div>
     <table>
       <thead><tr><th>id</th><th>科目 / 子类</th><th>正面（节选）</th><th>来源</th><th>写入时间</th></tr></thead>
@@ -404,20 +406,31 @@
     return state.calls;
   }
 
-  /* ② 真实数据 */
+  /* ② 真实数据
+   * Day 24 修复（Bug #2）：这一块以前撒谎。
+   *   接口按 id.asc 返回，前端却写 limit=5 就直接把这 5 条当「最新 5 行」——
+   *   实际拿到的是库里**最旧**的 5 条（id 1~5）；新写入的行 id 更大，永远进不来，
+   *   于是「写完点重新读取就能在列表里看到它」这句承诺根本做不到（实测 B2 失败）。
+   *   行数也是错的：接口的 count 按契约是「本页条数」，页面却把它当「库内总行数」写成 5
+   *   ——库里 26 行、页面写 5 行，而检查台存在的意义恰恰是「让数据自证」，不能给错的数。
+   *   现在：一次读满上限 → 自己按 id 倒序 → 展示最新 5 条；行数用实际读到的条数。
+   */
+  var LIMIT = KQ_CONFIG.CARDS_LIMIT || 200;
+  var SHOW_ROWS = 5;
   function loadCards() {
     badge($('dataBadge'), 'wait', '⏳ 读取中');
-    msg($('dataMsg'), 'plain', '正在请求 ' + API + '/cards?limit=5 …');
-    return apiFetch('GET', '/cards?limit=5')
+    msg($('dataMsg'), 'plain', '正在请求 ' + API + '/cards?limit=' + LIMIT + ' …');
+    return apiFetch('GET', '/cards?limit=' + LIMIT)
       .then(function (res) {
         if (res.status !== 200 || !res.body || res.body.ok !== true || !Array.isArray(res.body.data)) {
           throw new Error((res.body && res.body.error && res.body.error.message) || ('HTTP ' + res.status));
         }
-        var rows = res.body.data;
+        var all = res.body.data;
+        var rows = all.slice().sort(function (a, b) { return b.id - a.id; }).slice(0, SHOW_ROWS);
         state.cards = res.body;
-        $('totalRows').textContent = res.body.count + ' 行';
+        $('totalRows').textContent = all.length + ' 行' + (all.length >= LIMIT ? '（已达读取上限）' : '');
         var newest = null;
-        rows.forEach(function (c) {
+        all.forEach(function (c) {
           if (!c.created_at) return;
           var t = new Date(c.created_at);
           if (!isNaN(t.getTime()) && (!newest || t > newest)) newest = t;
@@ -437,15 +450,16 @@
             '<td class="num">' + t + '</td>';
           tb.appendChild(tr);
         });
-        badge($('dataBadge'), 'ok', '✅ 读到 ' + rows.length + ' 行真数据');
-        msg($('dataMsg'), 'ok', '数据来自云端数据库（共 ' + res.body.count + ' 行，此处展示最新 ' + rows.length +
-          ' 行）。想验证「数据在动」：在控制台改一条，再点「重新读取」，这里会跟着变。');
+        badge($('dataBadge'), 'ok', '✅ 读到 ' + all.length + ' 行真数据');
+        msg($('dataMsg'), 'ok', '数据来自云端数据库：本次读到 ' + all.length + ' 行（读取上限 ' + LIMIT + '），' +
+          '下表列出其中**最新**的 ' + rows.length + ' 行（按 id 倒序）。想验证「数据在动」：写一条或改一条，' +
+          '再点「重新读取」，它会出现在下表最上面。');
         touchUpdated(new Date());
         paintDest();
         return res.body;
       })
       .catch(function (e) {
-        var t = netText(e, API + '/cards?limit=5');
+        var t = netText(e, API + '/cards?limit=' + LIMIT);
         badge($('dataBadge'), 'bad', '❌ 连不上');
         $('dataRows').innerHTML = '<tr><td colspan="5" class="num">' + esc(t) + '</td></tr>';
         msg($('dataMsg'), 'bad', t);
@@ -700,8 +714,16 @@
     badge($('editBadge'), 'wait', '⏳ 防呆检测中');
     msg($('editMsg'), 'plain', '对 id=' + MISS + ' 各发一次 PATCH 与 DELETE …');
     var out = {};
+    /* Day 24 修复（Bug #1）：第一个请求的响应要提到函数作用域。
+       原来第二个 .then(function (r2) { … missLine('PATCH', r1) … }) 里引用了 r1，
+       而 r1 只活在第一个回调的形参里 —— 第二个回调里它是未声明变量，
+       一走到那行就抛 ReferenceError: r1 is not defined（checkup.html:713），
+       再被挂载处的空 catch 吞掉：两个 404 明明都收到了，页面却永远停在「⏳ 防呆检测中」。
+       这就是最坏的失败形态 —— 静默失败，连 F12 红字都没有。 */
+    var firstRes = null;
     return apiFetch('PATCH', '/cards/' + MISS, { back: '这条 id 根本不存在' })
       .then(function (r1) {
+        firstRes = r1;
         out.PATCH = { status: r1.status, body: r1.body };
         return apiFetch('DELETE', '/cards/' + MISS);
       })
@@ -710,7 +732,7 @@
         state.lastMissing = out;
         // 输出刻意写成紧凑的「一行一条」，而不是整段 JSON ——
         // 证据要能一屏看完，滚动截图里的关键字段被截掉就等于没写。
-        $('editJson').textContent = missLine('PATCH', r1) + '\n' + missLine('DELETE', r2);
+        $('editJson').textContent = missLine('PATCH', firstRes) + '\n' + missLine('DELETE', r2);
         var ok = out.PATCH.status === 404 && out.DELETE.status === 404 &&
                  out.PATCH.body && out.PATCH.body.ok === false && out.DELETE.body && out.DELETE.body.ok === false;
         badge($('editBadge'), ok ? 'ok' : 'bad', ok ? '✅ 防呆通过 · 两条都 404' : '❌ 防呆异常');
@@ -738,7 +760,18 @@
   $('btnLoad').addEventListener('click', function () { loadEditRow().catch(function () {}); });
   $('btnPatch').addEventListener('click', function () { patchRow().catch(function () {}); });
   $('btnDelete').addEventListener('click', function () { deleteRow().catch(function () {}); });
-  $('btnTryMissing').addEventListener('click', function () { tryMissing().catch(function () {}); });
+  /* Day 24：这个挂载点原来也是空 catch —— 它是 Bug #1 的「帮凶」：
+     异常被吞掉，页面停在「⏳ 检测中」而没有任何人知道。
+     现在至少把中断说出来，并往控制台留一行可复制的痕迹。
+     （其余同类空 catch 属同一隐患，已登记为待办，今天不扩大改动范围。） */
+  $('btnTryMissing').addEventListener('click', function () {
+    tryMissing().catch(function (e) {
+      badge($('editBadge'), 'bad', '❌ 检测中断');
+      msg($('editMsg'), 'bad', '防呆检测没能跑完：' + ((e && e.message) || e) + '（原因已打到控制台，可复制给开发者）');
+      $('editJson').textContent = '检测中断：' + ((e && (e.stack || e.message)) || e);
+      console.error('[KQ][checkup] tryMissing 中断：', e);
+    });
+  });
   $('btnEditReset').addEventListener('click', function () {
     disarmDelete();
     state.edit = { id: null, before: null, after: null, confirm: null, timer: null, source: null };
