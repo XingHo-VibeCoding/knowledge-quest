@@ -166,9 +166,24 @@ say "[$(ts)] deploy.sh 返回码 $?"      # ❌ $(ts) 先执行，$? 读到的�
 
 | 项 | 值 |
 |---|---|
-| commit 标题 | `Day 26｜回滚演练补记：构建改 staging+mv、部署加前端生效自证、四个坑留档` |
-| 说明两行 | ① 改了什么：`deploy.sh` 根治构建目录被批量删除保护拦住的问题（staging + mv）并新增「前端生效自证」；修掉演练脚本假返回码；新增临时目录清理入口<br>② 加了什么：`docs/day26-drill-log.md`（演练记录 + 两次撞坑 + 独立复测）、4 张截图证据 |
-| 推送 | 见 `verify_push.py` 五项核对输出 |
+| 本次 commit | `5a49533` Day 26｜回滚演练补记：构建改 staging+mv、部署加前端生效自证、四个坑留档 |
+| 说明两行 | ① 改了什么：`deploy.sh` 根治构建目录被批量删除保护拦住的问题（staging + mv）并新增「前端生效自证」；修掉演练脚本假返回码；新增临时目录清理入口<br>② 加了什么：`docs/day26-drill-log.md`（演练记录 + 两次撞坑 + 独立复测）、`docs/day26-checkin.md`、4 张截图证据 |
+| 远端 main | `eeb21a0`（tree `b6b63f3`，与本地 HEAD tree **完全一致**） |
+| 远端 tag | `v1.0` → 注解 tag 对象 `3e6a91e` → release 提交 `1996950` |
+| 推送后核对 | `verify_push.py` 五项全 PASS：`[TREE EQUAL]` `[FILES MATCH]` `[WORKTREE CLEAN]` `[SECRET SPEC A1]` `[.env IGNORED]` |
+| 两个线上域名 | GitHub Pages 与 CloudBase 托管均已在跑 `BUILD: 'v1.0-2026-10-11'` |
+
+**本次推送踩到的两件事（已登记成规则）**：
+
+1. **远端落后不止一个提交**：本地有 `69749d6`（发布 v1.0）和 `5a49533`（本日补记）两个提交没推。
+   单提交推送脚本按「远端 tip == 本地 HEAD 的父提交」做断言，于是断言失败。
+   正确做法：先找出**本地哪个提交的 tree 等于远端 tip 的 tree**（本次是 `d7b4224`），
+   再用 `KQ_BASE_TIP=d7b4224` 让脚本按序 replay —— **不能假设"只差一个提交"**。
+2. **git 直连与代理都不可用**：`https_proxy` 对 github.com 是 `CONNECT tunnel failed, response 502`；
+   去掉代理直连则是 `Recv failure: Connection was reset`；`git ls-remote` 还随机报 `schannel` 掐断。
+   但**直连 `api.github.com` 是 200** —— 所以推送走 Git Data API 兜底（`env -u https_proxy` 强制直连）。
+   **判据**：先 `curl -o /dev/null -w '%{http_code}' https://api.github.com/zen`，
+   通了就走 API，不通再谈别的。
 
 ---
 
