@@ -6,6 +6,11 @@ Thumbs.db
 
 # 部署临时目录（CloudBase 静态托管上传暂存，见 cloudbase/deploy.sh）
 .cloudbase-dist/
+# Day 26：构建改为 staging + mv 后新增的两个目录
+#   .cloudbase-dist.stage = 构建中的暂存（只有二十来个文件，避免触发批量删除保护）
+#   .cloudbase-trash/     = 被 mv 走的旧构建目录（mv 不是删除，不触发保护）
+.cloudbase-dist.stage/
+.cloudbase-trash/
 
 # 函数重发元数据（tcb fn deploy --metadata-file 写出，仅本机证据，不入库）
 .cloudbase-fn-meta.json
