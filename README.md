@@ -50,6 +50,31 @@ python -m http.server 8000
 > 另有第 5 种「筛选无结果」态（Day 12）：有卡片但筛选条件一个都匹配不上时，提示「没有找到相关内容」+ 一键清除筛选——它和「空」是两件事，文案和出口都不同。
 > `demo` 参数只是把状态常驻出来给验收 / 截图用，不给参数时一切按真实数据走。
 
+## 发布前检查（Day 25）
+
+每次改完代码、每次发布前，跑一条命令过一遍全部检查项：
+
+```bash
+bash tools/verify-project.sh            # 全量：本地工作区 + 公网 + 数据库
+bash tools/verify-project.sh --offline  # 只跑本地组（不碰网络，秒级）
+```
+
+或者直接在对话里输入 `/verify-project`（Skill 定义见 `.workbuddy/skills/verify-project/SKILL.md`）。
+
+**它查什么** —— 13 项自动 + 1 项人工，判据**全部来自本项目真实踩过的坑**（不是通用模板）：
+
+| 组 | 检查项 |
+|---|---|
+| A 本地工作区 | 工作区/全部历史无硬编码密钥、`.env` 未被提交且已被忽略、`.env.example` 只留字段名、**BUILD 标记不过期** |
+| B 公网 | 首页是真页面、线上接口地址与本地一致、健康接口、读接口、**写接口闭环且零残留**、**部署是否真的生效** |
+| C 数据库 | 可连接、核心表存在 |
+| D 人工 | 剩余额度与到期时间（控制台看，脚本拿不到） |
+
+**输出**：逐项 `[PASS]` / `[FAIL]` / `[SKIP]` + 证据（状态码 / 字节数 / 行数 / 接口原文），末尾给总数与结论；有 FAIL 时退出码为 `1`。
+**判据不许模糊**：每项都写明"怎么算通过"——出现"看起来正常"即视为不合格。
+
+最近一次实跑：`PASS 13 · FAIL 0 · SKIP 1`（2026-10-11）。
+
 ## 技术栈
 
 纯 HTML / CSS / JavaScript（原生，无框架）+ 本地 JSON mock 数据；第 3 周起接真实 API。
@@ -63,4 +88,5 @@ python -m http.server 8000
 - [TECH_DESIGN.md](TECH_DESIGN.md) — 技术设计：一句话路线、方案对比、数据流
 - [DESIGN_RULES.md](DESIGN_RULES.md) — 设计规则（Day 9 定稿）：检查什么 / 遵守什么 / 怎么验证
 - [.workbuddy/skills/kq-frontend-audit/](.workbuddy/skills/kq-frontend-audit/SKILL.md) — 项目内可复用 Skill（Day 12）：改 UI 前后按它过一遍，每项判据都是可复算的数字
+- [.workbuddy/skills/verify-project/](.workbuddy/skills/verify-project/SKILL.md) — 项目内可复用 Skill（Day 25）：发布前检查，`bash tools/verify-project.sh` 一键过 13 项
 - [AGENTS.md](AGENTS.md) — AI 协作规则书
