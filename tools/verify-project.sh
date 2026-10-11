@@ -85,13 +85,14 @@ if [ -n "${SEC_OUT:-}" ]; then
 fi
 
 # A6：Build 标记 —— 抓「改了前端忘了改 BUILD」（Day 24 真实遗留：前端改到 10-10，BUILD 还写 d23-10-09）
+# 合法格式两种：正式发布版 vX.Y-YYYY-MM-DD / 日常迭代版 dNN-YYYY-MM-DD（Day 26 起 v1.0 走前者）
 FRONT_DATE="$(git log -1 --format=%cs -- js/ index.html tools/ 2>/dev/null)"
 if [ -z "$BUILD" ]; then
-  bad "A6 BUILD 标记为空" "js/config.js 的 BUILD 必须是 dNN-YYYY-MM-DD；空值等于『不知道线上跑哪版』"
-elif ! echo "$BUILD" | grep -qE '^d[0-9]+-[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
-  bad "A6 BUILD 格式不合法：$BUILD" "期望 dNN-YYYY-MM-DD，例如 d25-2026-10-11"
+  bad "A6 BUILD 标记为空" "js/config.js 的 BUILD 必须是 vX.Y-YYYY-MM-DD 或 dNN-YYYY-MM-DD；空值等于『不知道线上跑哪版』"
+elif ! echo "$BUILD" | grep -qE '^(v[0-9]+\.[0-9]+|d[0-9]+)-[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+  bad "A6 BUILD 格式不合法：$BUILD" "期望 vX.Y-YYYY-MM-DD（正式发布）或 dNN-YYYY-MM-DD（日常）"
 else
-  BUILD_DATE="$(echo "$BUILD" | sed -E 's/^d[0-9]+-//')"
+  BUILD_DATE="$(echo "$BUILD" | sed -E 's/^(v[0-9]+\.[0-9]+|d[0-9]+)-//')"
   if [ -n "$FRONT_DATE" ] && [ "$BUILD_DATE" \< "$FRONT_DATE" ]; then
     bad "A6 BUILD 过期：${BUILD} < 前端最后改动 ${FRONT_DATE}" \
         "前端改了但 BUILD 没跟着改 → 页脚会显示旧版本号，制造『改了没生效』的假故障"

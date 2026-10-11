@@ -38,7 +38,7 @@ agent_created: true
 | A3 | `.env` 从未被提交 | 同上 | 该行报 `[PASS]`，0 条记录 | Day 23 |
 | A4 | `.env.example` 只留字段名 | `grep -E "^CLOUDBASE_[A-Z_]*=" .env.example` | 带值的字段数 = 0 | 附录 L |
 | A5 | `.env` 已被忽略 | `git check-ignore -v .env` | 有输出（打印命中的 .gitignore 行） | 附录 L |
-| A6 | **BUILD 标记不过期** | 由本脚本内联计算 | 非空 + 形如 `dNN-YYYY-MM-DD` + 日期 ≥ `js/ index.html tools/` 最后一次提交日期 | **Day 24 真实遗留**：前端改到 10-10，BUILD 还写 `d23-2026-10-09` |
+| A6 | **BUILD 标记不过期** | 由本脚本内联计算 | 非空 + 形如 `vX.Y-YYYY-MM-DD`（正式发布）或 `dNN-YYYY-MM-DD`（日常），且日期 ≥ `js/ index.html tools/` 最后一次提交日期 | **Day 24 真实遗留**：前端改到 10-10，BUILD 还写 `d23-2026-10-09` |
 
 ### B 组｜公网（静态站 + 接口）
 

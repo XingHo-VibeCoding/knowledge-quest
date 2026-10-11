@@ -26,9 +26,10 @@ const KQ_CONFIG = {
 
   /* 构建标记：用来一眼确认"线上跑的到底是哪一版"，避免"改了没生效"这种假故障。
      每次重新构建上传前手动改一次（改了没改，看页脚的标记就知道）。
-     ⚠️ Day 25 起由 tools/verify-project.sh 的 A6 项强制校验：非空 + 格式 dNN-YYYY-MM-DD +
+     格式两种（Day 26 起）：正式发布版 `vX.Y-YYYY-MM-DD`，日常迭代版 `dNN-YYYY-MM-DD`。
+     ⚠️ 由 tools/verify-project.sh 的 A6 项强制校验：非空 + 格式合法 +
         日期不得早于 js/、index.html、tools/ 的最后一次提交日期（抓"改了前端忘了改 BUILD"）。 */
-  BUILD: 'd25-2026-10-11'
+  BUILD: 'v1.0-2026-10-11'
 };
 
 /* 自检：配置本身写错（地址为空 / 末尾多了斜杠）时立刻喊出来，
