@@ -215,6 +215,7 @@ say "[$(ts)] deploy.sh 返回码 $?"      # ❌ $(ts) 先执行，$? 读到的�
 | 判断表（余力） | ✅ | `docs/day26-rollback-manual.md` 第 2 节，8 种情况 |
 | 今日不做守住了 | 🛡️ | 云函数回退 / 数据恢复均只写手册、标 `📋 不实操` 并注明原因 |
 | 数据未受损 | ✅ | `cards` 26 行 / `quiz_records` 6 行，与发布前备份一致 |
+| 每日一问已答 | ✅ | 第九节（两个数字 + 三个前提 + 一处诚实保留：数据恢复未实操）；可交图 `docs/screenshots/kq_day26_daily_question.png` |
 
 ---
 
