@@ -167,11 +167,8 @@ tools/{security-check,backup-data,verify-project,clean-trash}.sh
 | `quiz_records_20261011.json` | 2026-10-11T17:34:14 | 6 | 6 | 6 | ✅（同刻 quiz_records=6） |
 
 **密钥检测**：特征词**现取自唯一真源** `bash tools/security-check.sh --print-pattern`
-（不在本文档抄第二遍，避免两边失同步）：
-
-```
-postgres://|postgresql://|sk-[A-Za-z0-9]{10,}|AKID[A-Za-z0-9]{10,}|-----BEGIN|gho_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}
-```
+—— 判据**不在本文档抄第二遍**（Day 23 的教训：文档里抄一遍字面量，就会被自己的审计扫出来；
+本次推送后核对正好抓到这条，已按规矩改成"现取"）。
 
 → 扫 `backups/*.json`：**命中合计 0**。备份**不含密钥、不含凭据、不含环境变量**，只有业务数据。
 
