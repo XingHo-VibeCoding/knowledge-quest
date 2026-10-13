@@ -414,9 +414,12 @@ function removeSub(subject, sub, btn) {
 }
 
 function updateStats() {
+  /* Day 27：原句「共 N 张卡片（其中你自己存的 M 张）」被试用人读成「内容得我自己存」，
+     改成先讲"已经有内容、可以直接开始"，自己加的张数只在 M > 0 时才出现。 */
   const localCount = cards.filter(function (c) { return c.local; }).length;
-  els.stats.textContent = '共 ' + cards.length + ' 张卡片（其中你自己存的 ' + localCount +
-    ' 张，保存在本机浏览器）· 科目：' + currentSubjects().join(' / ');
+  els.stats.textContent = '共 ' + cards.length + ' 张卡片，可以直接开始复习' +
+    (localCount ? '（其中 ' + localCount + ' 张是你自己加的，存本机）' : '') +
+    ' · 科目：' + currentSubjects().join(' / ');
 }
 
 /* ＝＝＝ Day 20 余力加练：最后更新时间 ＝＝＝
@@ -441,16 +444,16 @@ function updateSourceBar() {
   els.srcBadge.className = 'src-badge';
   if (kqDataSource === 'api') {
     els.srcBadge.classList.add('ok');
-    els.srcBadge.textContent = '🟢 数据来源：云端数据库（接口已连通）';
+    els.srcBadge.textContent = '🟢 已加载 ' + cards.length + ' 张卡片（来自云端）';
     els.srcTime.textContent = '库内最新一条：' + (kqNewestWriteAt ? fmtStamp(kqNewestWriteAt) : '—') +
       ' · 本次读取：' + (kqLastReadAt ? fmtClock(kqLastReadAt) : '—') +
       ' · 构建 ' + KQ_CONFIG.BUILD;
   } else if (kqDataSource === 'error') {
     els.srcBadge.classList.add('bad');
-    els.srcBadge.textContent = '🔴 数据来源：云端数据库 —— 没连上';
+    els.srcBadge.textContent = '🔴 卡片没加载出来（云端没连上）';
     els.srcTime.textContent = '接口 ' + KQ_API_BASE + ' · 原因：' + kqLastError;
   } else {
-    els.srcBadge.textContent = '⏳ 正在连接云端数据库…';
+    els.srcBadge.textContent = '⏳ 正在加载卡片…';
     els.srcTime.textContent = KQ_API_BASE;
   }
 }

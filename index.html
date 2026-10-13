@@ -30,9 +30,12 @@
     <p id="stats" class="stats"></p>
 
     <!-- Day 20：数据来源条 —— 页面必须能自证「我连的是云端数据库，不是本地文件」。
-         绿色 = 接口已连通；红色 = 没连上（并直接给出接口地址与排查顺序）。 -->
+         绿色 = 接口已连通；红色 = 没连上（并直接给出接口地址与排查顺序）。
+         Day 27：真人试用反馈「以为内容要自己存数据库」→ 用户可见的文案去掉「数据库」字样，
+         自证能力交给下方小字（库内最新一条 / 本次读取 / 构建号）——
+         技术自证是给验收官的，人话是给用户的，两拨人的信息分开写。 -->
     <p id="srcBar" class="srcbar" aria-live="polite">
-      <span id="srcBadge" class="src-badge">⏳ 正在连接云端数据库…</span>
+      <span id="srcBadge" class="src-badge">⏳ 正在加载卡片…</span>
       <span id="srcTime" class="src-time"></span>
     </p>
 
@@ -67,9 +70,12 @@
         </div>
       </div>
 
-      <!-- 添加卡片面板（Day 9：你的知识你存，localStorage 本机保存） -->
+      <!-- 添加卡片面板（Day 9：你的知识你存，localStorage 本机保存）
+           Day 27：真人试用人以为「加卡片 = 自己去数据库里存内容」→ 面板顶部加一句人话，
+           把「存哪儿不用你管」说在前面，别让他先误解再放弃。 -->
       <div id="addPanel" class="addpanel hidden">
         <h3 class="addpanel-title">添加一张知识卡片</h3>
+        <p class="addpanel-desc">把要记的知识打进去，点保存就好 —— 存到哪你不用管，卡片会自动存好。</p>
         <div class="form-row">
           <label for="fSubject">科目</label>
           <select id="fSubject">
@@ -277,9 +283,9 @@
 
   <footer class="footer">
     <div class="container">
-      <p class="credit">卡片数据实时读取自云端数据库（CloudBase）· 点卡片翻面看答案 · 自存卡片保存在本机浏览器</p>
+      <p class="credit">卡片存在云端（换设备也还在）· 点卡片翻面看答案 · 你自己加的卡片存在本机浏览器</p>
       <p class="credit">
-        <a href="tools/checkup.html">🔍 云端数据检查台</a>
+        <a href="tools/checkup.html">🔍 技术自检</a>
         <span class="dot">·</span>
         <span id="footBuild">构建 —</span>
         <span class="dot">·</span>

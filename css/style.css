@@ -519,6 +519,8 @@ main { flex: 1; padding-bottom: 30px; }
 /* ＝＝＝ 管理分类面板 ＝＝＝ */
 .catpanel { border: 1px solid #d8d4f8; }
 .catpanel-desc { font-size: 12px; color: var(--ink-secondary); margin: -6px 0 12px; }
+/* Day 27：添加卡片面板的一句人话说明（直击"以为要自己存数据库"的误解），比同类说明大 1px 求可读 */
+.addpanel-desc { font-size: 13px; color: var(--ink-secondary); margin: -6px 0 12px; }
 .catlist { display: flex; flex-direction: column; gap: 8px; }
 .cat-row {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

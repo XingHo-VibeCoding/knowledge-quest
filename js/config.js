@@ -29,7 +29,7 @@ const KQ_CONFIG = {
      格式两种（Day 26 起）：正式发布版 `vX.Y-YYYY-MM-DD`，日常迭代版 `dNN-YYYY-MM-DD`。
      ⚠️ 由 tools/verify-project.sh 的 A6 项强制校验：非空 + 格式合法 +
         日期不得早于 js/、index.html、tools/ 的最后一次提交日期（抓"改了前端忘了改 BUILD"）。 */
-  BUILD: 'v1.0-2026-10-11'
+  BUILD: 'd27-2026-10-14'
 };
 
 /* 自检：配置本身写错（地址为空 / 末尾多了斜杠）时立刻喊出来，
