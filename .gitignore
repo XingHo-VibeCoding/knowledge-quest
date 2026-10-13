@@ -20,3 +20,5 @@ cloudbaserc.local.json
 
 # 回滚演练临时目录（Day 26；Windows 版 CLI 读不了 Git Bash 的 /tmp，只能放仓库内）
 .rollback-tmp/
+# Day 27：回滚改用 git worktree（见 docs/day26-rollback-manual.md ①），worktree 也放仓库内
+.rollback-wt/

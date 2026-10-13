@@ -9,7 +9,7 @@
 #   三态之外不许出现「看起来正常」「基本没问题」——判据必须写成「怎么算通过」。
 #   命令不存在、请求失败、证据缺失 → 一律 FAIL（或明示 SKIP 并说明原因），不许默认通过。
 #
-# 检查项全部来自本项目真实踩过的坑（对应 docs/day25-checklist.md 的「来源」列），不是通用模板。
+# 检查项全部来自本项目真实踩过的坑（对应 docs/day25-checkin.md 的「来源」列），不是通用模板。
 #
 # ⚠️ 本脚本自己不得含可被密钥扫描命中的字面量 → 特征词向 tools/security-check.sh 现取（单一真源）。
 
@@ -36,6 +36,13 @@ PROBE_ID="99999999999999999999"   # 超大 id：必在 DB 层抛错，用来打�
 NODE="C:/Users/lenovo/.workbuddy/binaries/node/versions/22.22.2-2/node.exe"
 CLI="C:/Users/lenovo/.workbuddy/binaries/node/workspace/node_modules/@cloudbase/cli/dist/standalone/cli.js"
 ENV_ID="$(echo "$API" | sed -E 's#https://([^.]+)\..*#\1#')"
+
+# CloudBase 静态托管域名（B7 用；取不到就置空 → B7 转 SKIP，不默认通过）
+HOST_DOM=""
+if [ -n "$ENV_ID" ] && [ -f "$CLI" ]; then
+  HOST_DOM="$(MSYS_NO_PATHCONV=1 "$NODE" "$CLI" hosting detail -e "$ENV_ID" 2>/dev/null \
+              | grep -oE 'https://[A-Za-z0-9._-]*tcloudbaseapp\.com' | head -1 || true)"
+fi
 
 echo "=========================================================="
 echo " 发布前检查（verify-project · Day 25）"
@@ -176,6 +183,26 @@ else
     ok "B6 线上跑的是新版（5xx 走统一出口：INTERNAL_ERROR + traceId）"
   else
     bad "B6 线上不像新版（5xx 未统一口径）" "GET $API/cards/$PROBE_ID → ${P:0:200}"$'\n'"           先确认部署真的生效：bash cloudbase/deploy.sh <envId> 看第 5 步自证"
+  fi
+
+  # B7：托管站白名单 —— 站点上**只能有**站点内容（Day 27 真实事故新增）
+  #     起因：Day 26 回滚演练用 `git archive` 导出整个仓库再 `hosting deploy /`，
+  #     把 AGENTS.md / PRD.md / TECH_DESIGN.md、cloudbase/ 全部源码、db/schema.sql、
+  #     docs/ 共 102 个文件传上了公网站点根目录，实测 curl 全部 200 可下载。
+  #     判据是「不该有的一个都不能有」，不是「我看了一眼没看到」。
+  if [ -z "${HOST_DOM:-}" ]; then
+    skip "B7 取不到 CloudBase 托管域名（跳过站点白名单检查）"
+  else
+    HK="$(MSYS_NO_PATHCONV=1 "$NODE" "$CLI" hosting list -e "$ENV_ID" --json 2>/dev/null \
+          | grep -oE '"key": *"[^"]+"' | sed -E 's/.*"key": *"([^"]+)".*/\1/' || true)"
+    ALLOW_RE='^(index\.html|css/|js/|data/|tools/[^/]+\.html$|__auth/|cloud-admin/)'
+    EXTRA="$(printf '%s\n' "$HK" | grep -vE "$ALLOW_RE" | grep -v '^$' || true)"
+    if [ -n "$EXTRA" ]; then
+      bad "B7 托管站有 $(printf '%s\n' "$EXTRA" | grep -c .) 个不该公开的文件（首例：$(printf '%s\n' "$EXTRA" | head -1)）" \
+          "跑 bash cloudbase/deploy.sh $ENV_ID 会清掉它们，第 5 步 ④ 会复核"$'\n'"           手工复核：$NODE $CLI hosting list -e $ENV_ID --json | grep -o '\"key\": *\"[^\"]*\"'"
+    else
+      ok "B7 托管站只有白名单内容（共 $(printf '%s\n' "$HK" | grep -c .) 个文件）"
+    fi
   fi
 
   echo

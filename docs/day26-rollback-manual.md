@@ -51,29 +51,42 @@
 git tag -l --sort=-creatordate | head
 git log --oneline -10
 
-# 1) 把目标版本的**完整仓库快照**导出到临时目录（不动工作区、不动 git index）
-ROLLBACK_TMP="D:/knowledge-quest/.rollback-tmp"
-rm -rf "$ROLLBACK_TMP" && mkdir -p "$ROLLBACK_TMP"
-git archive <目标commit> | tar -x -C "$ROLLBACK_TMP"
+# 1) 用 git worktree 把目标版本**签出成一个独立目录**（不动工作区、不动暂存区）
+WT="D:/knowledge-quest/.rollback-wt"
+git worktree remove --force "$WT" 2>/dev/null || true
+git worktree add --detach "$WT" <目标commit>
 
-# 2) 用那一版的产物重新上传（直接调 hosting deploy，只换前端）
-TCB="C:/Users/lenovo/.workbuddy/binaries/node/workspace/node_modules/.bin/cloudbase.cmd"
-MSYS_NO_PATHCONV=1 "$TCB" hosting deploy "$ROLLBACK_TMP" / -e <envId>
+# 2) 在那一版里跑**同一个部署脚本**（它自带白名单 + 站上残留清理）
+cd "$WT" && bash cloudbase/deploy.sh <envId>
+# 看第 5 步「部署生效自证」：health / 新版行为 / 前端生效 / 站点白名单 四项都要 OK
 
 # 3) 验证"线上确实变了"
 curl -s <SITE>/js/config.js | grep BUILD        # 应显示目标版本的 BUILD
 
 # 4) 演练/事故结束后恢复最新版
-rm -rf "$ROLLBACK_TMP"
-bash cloudbase/deploy.sh <envId>                # 重新上传当前工作区（= 最新版）
+cd - && git worktree remove --force "$WT"
+bash cloudbase/deploy.sh <envId>                # 从工作区重新上传（= 最新版）
 ```
 
-> **为什么直接调 `hosting deploy` 而不是 `cloudbase/deploy.sh`**：`deploy.sh` 是从**工作区**取文件的
-> （第 3 步 `cp "$PROJ/index.html" …`），回退时工作区还是新版；走它就得先 `git checkout` 切工作区，
-> 会把 git 暂存区搅乱。回退只要换前端，直接 `hosting deploy <旧版目录>` 更准、更干净。
-> （`deploy.sh` 的价值在于"云函数 + 前端"一起发，见 ②。）
+> ⚠️⚠️ **2026-10-11（Day 27）修正 —— 这条曾经害我们泄露了整个项目**：
+> 旧写法是 `git archive <commit> | tar -x -C "$ROLLBACK_TMP"` 然后
+> `hosting deploy "$ROLLBACK_TMP" /`。问题在于 `git archive` 导出的是**整个仓库根**
+> （含 AGENTS.md / PRD.md / TECH_DESIGN.md / api-contract.md / `cloudbase/` 全部源码 /
+> `db/schema.sql` / `docs/` 75 个文件），而 `hosting deploy` 传到 `/` 是**只覆盖不删除**的 ——
+> 于是 122 个文件、27.7 MB 全落在公网站点根目录上，**任何人打开网址就能下载源码和设计文档**
+> （实测 `curl .../cloudbase/deploy.sh` 返回 200 并输出脚本正文）。
 >
-> ⚠️ 临时目录要放在仓库内但被忽略（本项目用 `.rollback-tmp/`，已加进 `.gitignore`）——
+> **新写法的两个关键点**：
+> 1. **用 worktree 而不是 archive** —— 拿到的是一个正常的项目目录，于是可以走 `deploy.sh`，
+>    而 `deploy.sh` 的构建是**白名单**的（`index.html` + `css/ js/ data/` + `tools/*.html`），
+>    整仓里那些东西根本没机会被上传。
+> 2. **`hosting deploy` 不删除** —— 所以"传错一次就永久留在公网"。因此 `deploy.sh` 现在
+>    每次部署前会**清掉站上不属于站点的残留**（docs/ cloudbase/ db/ backups/ 根目录文档 / `tools/*.sh`），
+>    并在第 5 步 ④ 用白名单做**行为自证**：站上出现白名单之外的文件 = 部署判定为失败。
+>
+> **教训**：回退脚本和发布脚本必须走**同一条构建路径**。两套路径 = 两套白名单 = 早晚有一边漏内容。
+
+> ⚠️ 临时目录要放在仓库内但被忽略（本项目用 `.rollback-wt/`，已加进 `.gitignore`）——
 > Windows 版 CLI 读不了 Git Bash 的 `/tmp`。
 
 **回退的生效判据（本项目专用）**：线上 `js/config.js` 里的 **`BUILD` 标记**。

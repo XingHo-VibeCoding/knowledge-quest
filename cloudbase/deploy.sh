@@ -83,13 +83,25 @@ echo "== 3/5 上传前端静态文件 =="
 #    计数而不是按目录里的真实文件数 —— 所以「先删干净再重建」这条路本身就不该走。
 #    改法：构建到 staging 目录（只有二十来个文件）→ 用 `mv` 把旧构建目录**移走**（mv 不是
 #    删除，不触发保护）→ staging 改名成正式目录。清理交给 tools/clean-trash.sh 择机做。
+# ⚠️⚠️ Day 27 修的真实事故：**站点内容必须有明确白名单**。
+#    起因：Day 26 回滚演练用 `git archive <commit> | tar -x` 导出的是**整个仓库**，
+#    再 `tcb hosting deploy <那个目录> /` —— 结果把 AGENTS.md / PRD.md / TECH_DESIGN.md /
+#    api-contract.md、`cloudbase/`（云函数全部源码 + 本脚本）、`db/`（schema.sql / seed.sql）、
+#    `docs/`（75 个文件）全传上了公网站点根目录，**任何人打开网址就能下载**（实测 200）。
+#    还白占了 27.7 MB 托管空间。所以这里做两件事：① 白名单只放「站点真正要用的东西」；
+#    ② 顺手清掉站上不属于站点的目录（见下面的 CLEAN 段），让「传错了」不再能悄悄留下。
+#
+# Day 27：`tools/` 只发布 *.html（云端核验台），**不发 .sh**。
+#    原先整目录 cp 会把 security-check.sh / verify-project.sh / backup-data.sh 一起公开
+#    —— 这些是内部工具，公网可下载没有任何理由。
 STAGE="$PROJ/.cloudbase-dist.stage"
 rm -rf "$STAGE" 2>/dev/null || true
-mkdir -p "$STAGE"
+mkdir -p "$STAGE/tools"
 cp "$PROJ/index.html" "$STAGE/"
-cp -r "$PROJ/css" "$PROJ/js" "$PROJ/data" "$PROJ/tools" "$STAGE/"
+cp -r "$PROJ/css" "$PROJ/js" "$PROJ/data" "$STAGE/"
+cp "$PROJ"/tools/*.html "$STAGE/tools/"
 LOCAL_N="$(find "$STAGE" -type f | wc -l)"
-echo "构建产物文件数：$LOCAL_N"
+echo "构建产物文件数：$LOCAL_N（白名单：index.html + css/ js/ data/ + tools/*.html）"
 if [ -d "$DIST" ]; then
   mkdir -p "$PROJ/.cloudbase-trash"
   if ! mv "$DIST" "$PROJ/.cloudbase-trash/dist-$(date '+%Y%m%d-%H%M%S')"; then
@@ -103,6 +115,45 @@ if ! mv "$STAGE" "$DIST"; then
   exit 1
 fi
 echo "构建目录就绪：$DIST（本次上传 $LOCAL_N 个文件）"
+
+# Day 27：上传前先清掉站上「不属于站点内容」的残留（`hosting deploy` 只覆盖不删除，
+# 所以一旦被误传过（如 Day 26 的整仓回滚），它会**永久留在公网**——必须主动清）。
+# 只清已知的几类，且先用 --json 取一次现状：干净时不产生任何删除调用，不拖慢日常部署。
+JUNK_DIRS="docs cloudbase db backups"
+JUNK_FILES="AGENTS.md DESIGN_RULES.md PRD.md README.md TECH_DESIGN.md api-contract.md research.md cloudbaserc.json cloudbaserc.local.json"
+LIVE_KEYS="$("$TCB" hosting list -e "$ENV_ID" --json 2>/dev/null | grep -oE '"key": *"[^"]+"' | sed -E 's/.*"key": *"([^"]+)".*/\1/' || true)"
+if [ -n "$LIVE_KEYS" ]; then
+  for d in $JUNK_DIRS; do
+    if printf '%s\n' "$LIVE_KEYS" | grep -qE "^${d}/"; then
+      echo "  清理站上残留目录：$d/"
+      "$TCB" hosting delete "$d" --dir --yes -e "$ENV_ID" >/dev/null 2>&1 || true
+    fi
+  done
+  for f in $JUNK_FILES; do
+    if printf '%s\n' "$LIVE_KEYS" | grep -qxF "$f"; then
+      echo "  清理站上残留文件：$f"
+      "$TCB" hosting delete "$f" --yes -e "$ENV_ID" >/dev/null 2>&1 || true
+    fi
+  done
+  # tools/ 下的 .sh（内部工具，不该公开）
+  # ⚠️⚠️ Day 27 修的真实事故（比泄露更严重）：这里原来是
+  #     `printf … | grep -E '^tools/.*\.sh$' | while read -r f; do … done`
+  #   —— 站上**没有** tools/*.sh 时 `grep` 返回 1，配合 `set -o pipefail` + `set -e`，
+  #   **整个部署脚本当场退出**（exit 1），而且死在「上传之前」，所以线上根本没更新，
+  #   日志只停在"构建目录就绪"，看着像什么都没发生。
+  #   为什么 Day 27 当天没暴露：那天站上恰好还残留着 tools/*.sh（泄露的尾巴），grep 有匹配 → 返回 0。
+  #   清理干净之后，这条就变成「干净站点必崩」—— 也就是说：**修好泄露之后，部署反而全废了**。
+  #   教训：`set -euo pipefail` 下，**任何 grep 都可能是自杀式判据**——必须 `|| true` 或放进 if。
+  TOOL_SH="$(printf '%s\n' "$LIVE_KEYS" | grep -E '^tools/.*\.sh$' || true)"
+  if [ -n "$TOOL_SH" ]; then
+    printf '%s\n' "$TOOL_SH" | while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      echo "  清理站上残留文件：$f"
+      "$TCB" hosting delete "$f" --yes -e "$ENV_ID" >/dev/null 2>&1 || true
+    done
+  fi
+fi
+
 set +e
 "$TCB" hosting deploy "$DIST" / -e "$ENV_ID"
 HOST_RC=$?
@@ -110,11 +161,11 @@ set -e
 # ⚠️ 这里刻意**不以返回码定生死**：`--verify` 的一致性校验对新环境常误报。
 #    真正的判据是第 5 步 ③「托管域名上的 BUILD 必须与本地一致」——行为说话。
 echo "托管上传返回码：$HOST_RC（非 0 常见于 --verify 误报；生效与否看第 5 步 ③）"
-echo "线上文件数：$("$TCB" hosting list -e "$ENV_ID" 2>/dev/null | grep -c 'index.html\|\.js\|\.css\|\.json\|\.html')"
+echo "线上文件数：$(printf '%s\n' "$LIVE_KEYS" | grep -c . || true)（改动前取样；上传后再复核见第 5 步 ④）"
 
 echo "== 4/5 公网地址 =="
 "$TCB" hosting detail -e "$ENV_ID" | head -20
-HOST="$("$TCB" hosting detail -e "$ENV_ID" 2>/dev/null | grep -oE 'https://[A-Za-z0-9._-]*tcloudbaseapp\.com' | head -1)"
+HOST="$("$TCB" hosting detail -e "$ENV_ID" 2>/dev/null | grep -oE 'https://[A-Za-z0-9._-]*tcloudbaseapp\.com' | head -1 || true)"
 [ -n "$HOST" ] && echo "静态托管域名：$HOST"
 "$TCB" routes list -e "$ENV_ID" | head -30
 
@@ -152,12 +203,13 @@ echo
 if [ -z "${HOST:-}" ]; then
   echo "  [前端生效]   ⚠️   取不到托管域名，跳过第 ③ 项（用 tcb hosting detail 自查）"
 else
-  LOCAL_BUILD="$(grep -oE "BUILD: *'[^']+'" "$PROJ/js/config.js" | head -1 | sed -E "s/.*'([^']+)'.*/\1/")"
+  # ⚠️ 同样别让 grep 当判据杀掉脚本（见第 3 步的教训）：匹配不到只应是"读不出来"，不是"崩掉"。
+  LOCAL_BUILD="$(grep -oE "BUILD: *'[^']+'" "$PROJ/js/config.js" 2>/dev/null | head -1 | sed -E "s/.*'([^']+)'.*/\1/" || true)"
   LIVE_BUILD=""
   for i in 1 2 3; do
     LIVE_BUILD="$(curl -s --noproxy '*' --max-time 20 -H 'Cache-Control: no-cache' \
       "$HOST/js/config.js?nocache=$(date +%s)-$i" 2>/dev/null \
-      | grep -oE "BUILD: *'[^']+'" | head -1 | sed -E "s/.*'([^']+)'.*/\1/")"
+      | grep -oE "BUILD: *'[^']+'" | head -1 | sed -E "s/.*'([^']+)'.*/\1/" || true)"
     [ "$LIVE_BUILD" = "$LOCAL_BUILD" ] && break
     [ "$i" != "3" ] && sleep 8
   done
@@ -168,6 +220,22 @@ else
     echo "                    → 前端没上传成功（回看第 3 步：是不是卡在批量删除保护上）"
     SELFCHECK_FAIL=1
   fi
+fi
+
+# ④ 托管站白名单自证（Day 27 新增）：站上**只能有**站点内容。
+#    专治今天发现的泄露 —— Day 26 回滚时整仓上传，AGENTS.md / PRD.md / TECH_DESIGN.md /
+#    cloudbase/ 源码 / db/schema.sql / docs/ 都在公网可下载（实测 200）。
+#    判据是「不该有的东西一个都不能有」，不是「我看了一眼没看到」。
+ALLOW_RE='^(index\.html|css/|js/|data/|tools/[^/]+\.html$|__auth/|cloud-admin/)'
+POST_KEYS="$("$TCB" hosting list -e "$ENV_ID" --json 2>/dev/null | grep -oE '"key": *"[^"]+"' | sed -E 's/.*"key": *"([^"]+)".*/\1/' || true)"
+EXTRA="$(printf '%s\n' "$POST_KEYS" | grep -vE "$ALLOW_RE" | grep -v '^$' || true)"
+if [ -n "$EXTRA" ]; then
+  echo "  [站点白名单] ❌   托管站上有 $(printf '%s\n' "$EXTRA" | grep -c .) 个不该公开的文件："
+  printf '%s\n' "$EXTRA" | head -10 | sed 's/^/                   /'
+  echo "                    → 复核：tcb hosting list -e $ENV_ID --json | grep -o '\"key\": *\"[^\"]*\"'"
+  SELFCHECK_FAIL=1
+else
+  echo "  [站点白名单] OK   站上只有白名单内容（共 $(printf '%s\n' "$POST_KEYS" | grep -c .) 个文件）"
 fi
 
 echo

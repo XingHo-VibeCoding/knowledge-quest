@@ -1,6 +1,6 @@
 ---
 name: verify-project
-description: 知识闯关发布前检查 —— 每次改完代码、每次发布前，跑一遍覆盖公网访问、接口读写、密钥红线、仓库卫生、数据库连接、部署生效判据的 13 项检查，逐项给 PASS/FAIL/未执行 + 证据。当用户说「发布前检查」「上线前过一遍」「跑一下 verify-project」「检查能不能发布」「发布前帮我看一眼」时使用。
+description: 知识闯关发布前检查 —— 每次改完代码、每次发布前，跑一遍覆盖公网访问、接口读写、密钥红线、仓库卫生、数据库连接、部署生效判据、托管站白名单的 14 项检查，逐项给 PASS/FAIL/未执行 + 证据。当用户说「发布前检查」「上线前过一遍」「跑一下 verify-project」「检查能不能发布」「发布前帮我看一眼」时使用。
 agent_created: true
 ---
 
@@ -21,7 +21,7 @@ agent_created: true
 
 ### 怎么算跑成功（3 个可观察标准）
 
-1. **退出码 0，且末行是 `结果：PASS 13 · FAIL 0`**（SKIP 只允许出现在 D1 人工项）。
+1. **退出码 0，且末行是 `结果：PASS 14 · FAIL 0`**（SKIP 只允许出现在 D1 人工项）。
 2. **每项都带证据**：状态码 / 字节数 / 行数 / 提交号 / 接口原文片段 —— 没有「看起来正常」这类词。
 3. **故意弄坏时必须 FAIL**：Day 25 实测往 `README.md` 注入一个假密钥 → A1 立刻 FAIL、退出码 1；移除后复跑回全绿。
 
@@ -50,6 +50,7 @@ agent_created: true
 | B4 | 读接口 | `curl <API>/cards?limit=5` | `"ok":true` 且 `count >= 1` | Day 17 |
 | B5 | **写接口闭环 + 零残留** | POST 造一行 → GET 读回 → DELETE → 再 GET | 四步依次 201 / 200 / 200 / 404 | Day 18 + Day 22 |
 | B6 | **部署是否真的生效** | `curl <API>/cards/99999999999999999999` | 返回 `INTERNAL_ERROR` **且带** `traceId` —— 这是**只在新版才成立**的行为 | **Day 24 事故**：`tcb fn detail` 的时间戳会被配置更新 touch，拿它当证据会误判 |
+| B7 | **托管站只能有站点内容** | `tcb hosting list -e <ENV> --json` 的 key 集合 | 全部落在白名单正则 `^(index\.html\|css/\|js/\|data/\|tools/[^/]+\.html$\|__auth/\|cloud-admin/)` 内 | **Day 27 事故**：回滚时 `git archive` 整仓上传，源码/文档/schema 102 个文件公网可下载 |
 
 ### C 组｜数据库
 
@@ -92,6 +93,7 @@ agent_created: true
 | 漏 `--json`（Day 25 第一次跑） | C1 误报 FAIL，数据库其实是通的 | `tcb db execute` 不带 `--json` 只打印**人看的表格**（`┌──┬──┐`），grep 不到任何结构化字段；结构化判据必须带 `--json` |
 | 拿时间戳当部署证据（Day 24） | 报「部署成功」，线上却是旧代码 | `fn detail` 的 Modification time 会被配置更新 touch；只认「只在新版才成立的行为」 |
 | 网关强制 `content-disposition: attachment` | `curl -w '%{size_download}'` 显示 `0`，看着像空响应 | 判首页要用 `wc -c` 数内容字节，别信 `size_download` |
+| 只覆盖不删除（Day 27） | 站点根目录出现 `AGENTS.md` / `cloudbase/deploy.sh` / `db/schema.sql`，`curl` 全部 200 | `tcb hosting deploy` **只覆盖不删除** → 传错一次就永久留在公网。必须主动清理 + 用 B7 白名单判据兜住 |
 
 ## 边界（今天不做什么）
 
@@ -104,3 +106,4 @@ agent_created: true
 | 日期 | 剩余额度 | 到期时间 | 记录人 |
 |---|---|---|---|
 | 2026-10-11 | 体验版（未计量） | 2027-04-03 | AI（据 Day 16 建环境记录） |
+| 2026-10-11 | 本计费周期 `6.21 / 3000` 资源点（云函数 4.88 / API 调用 1.18 / HTTP 网关 0.14 / 存储 0.01）；计费周期 2026-10-03 ~ 2026-11-03；到期 **2027-04-03 23:59:59** | → | AI（Day 27 用 `tcb env usage` + `tcb env list` 实测，非控制台截图） |
