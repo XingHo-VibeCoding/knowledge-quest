@@ -14,7 +14,7 @@
 | # | 检查项 | 执行命令 | 怎么算通过 |
 |---|---|---|---|
 | A1 | 工作区代码里没有密钥 | `git grep -I -i -n -E "$(bash tools/security-check.sh --print-pattern)" -- .` | **输出 0 行** |
-| A2 | **全部提交历史**里没有密钥 | `git grep -I -i -n -E "$(bash tools/security-check.sh --print-pattern)" $(git rev-list --all) -- . ':(exclude)docs/security-checklist.md' ':(exclude)docs/day23-checkin.md' ':(exclude)tools/security-check.sh'` | **输出 0 行**（排除的 3 份是特征词**定义处**，历史不可改写、排除名单明示；除它们外任何文件命中即红线，按「作废密钥 → 重新生成 → 换环境变量」处理，不是改代码了事） |
+| A2 | **全部提交历史**里没有密钥 | `git grep -I -i -n -E "$(bash tools/security-check.sh --print-pattern)" $(git rev-list --all) -- . ':(exclude)docs/security-checklist.md' ':(exclude)docs/day23-checkin.md' ':(exclude)tools/security-check.sh' ':(exclude)docs/day27-resource-check.md'` | **输出 0 行**（排除的 4 份是特征词**定义处**，历史不可改写、排除名单明示；除它们外任何文件命中即红线，按「作废密钥 → 重新生成 → 换环境变量」处理，不是改代码了事）<br>**第 4 项例外（Day 28 追加）**：`docs/day27-resource-check.md` 曾在 `abe89b2` 误抄特征词字面量，同日已修掉；因历史提交不可改写而排除其历史版本。逐行核对过：4 处历史命中全部是「特征词的定义本身」，无任何可用凭据 |
 | A3 | `.env` 从未被提交过 | `git log --all --oneline -- .env` | **无输出** |
 | A4 | 历史里没有敏感文件名 | `git log --all --pretty=format: --name-only --diff-filter=A \| sort -u \| grep -iE "\.env$\|\.env\.[a-z]+$\|secret\|cred\|\.pem$\|\.key$" \| grep -viE "^\.env\.example$\|^docs/screenshots/"` | **无输出**（例外两项：`.env.example` 是模板、本就该入库；`docs/screenshots/` 是自查证据图，文件名带 secret 属正常） |
 | A5 | `.env` 已被忽略 | `git check-ignore -v .env` | **有输出**且形如 `.gitignore:N:.env`（无输出 = 没被忽略，必须修 .gitignore） |

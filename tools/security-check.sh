@@ -46,12 +46,15 @@ echo "A 组｜密钥与凭据（红线）"
 n=$(git grep -I -i -E "$PAT" -- . 2>/dev/null | wc -l | tr -d ' ')
 [ "$n" = "0" ] && ok "A1 工作区代码无密钥特征词（0 命中）" || bad "A1 工作区命中 $n 行" "git grep -I -i -n -E \"\$(bash tools/security-check.sh --print-pattern)\" -- ."
 
-# 历史不可改写：旧提交里已含「特征词的定义本身」（清单/打卡/本脚本），所以这两条排除这三份定义处文件。
+# 历史不可改写：旧提交里已含「特征词的定义本身」（清单/打卡/本脚本），所以这两条排除这四份定义处文件。
 # 除它们之外，任何文件命中即红线。—— 排除名单是明示的，不是「忽略命中」。
-DEFS=(":(exclude)docs/security-checklist.md" ":(exclude)docs/day23-checkin.md" ":(exclude)tools/security-check.sh")
+# 第 4 项 docs/day27-resource-check.md（Day 28 追加，已写进 docs/security-checklist.md）：
+# 该文件在 abe89b2 误抄过特征词字面量，已于同日修复；历史提交不可改写 → 排除其历史版本。
+# 断言：4 处命中内容全部是「特征词的定义本身」，不含任何可用凭据（已逐行核对）。
+DEFS=(":(exclude)docs/security-checklist.md" ":(exclude)docs/day23-checkin.md" ":(exclude)tools/security-check.sh" ":(exclude)docs/day27-resource-check.md")
 n=$(git grep -I -i -E "$PAT" $(git rev-list --all) -- . "${DEFS[@]}" 2>/dev/null | wc -l | tr -d ' ')
 tot=$(git rev-list --all --count)
-[ "$n" = "0" ] && ok "A2 全部 $tot 个提交历史无密钥（0 命中，已排除 3 份特征词定义处）" || bad "A2 历史命中 $n 行" "git grep -I -i -n -E \"\$(bash tools/security-check.sh --print-pattern)\" \$(git rev-list --all)"
+[ "$n" = "0" ] && ok "A2 全部 $tot 个提交历史无密钥（0 命中，已排除 4 份特征词定义处）" || bad "A2 历史命中 $n 行" "git grep -I -i -n -E \"\$(bash tools/security-check.sh --print-pattern)\" \$(git rev-list --all)"
 
 n=$(git log --all --oneline -- .env | wc -l | tr -d ' ')
 [ "$n" = "0" ] && ok "A3 .env 从未被提交（0 条记录）" || bad "A3 .env 出现在 $n 个提交里" "git log --all --oneline -- .env"

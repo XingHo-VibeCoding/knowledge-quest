@@ -1,0 +1,44 @@
+{
+ "round": "1",
+ "site": "https://xingho-vibecoding.github.io/knowledge-quest/",
+ "allOk": true,
+ "newId": 89,
+ "residue": {
+  "before": 27,
+  "after": 27,
+  "clean": true,
+  "repeatDelete": 404
+ },
+ "steps": [
+  {
+   "step": "0 打开线上首页（真数据）",
+   "ok": true,
+   "detail": "🟢 已加载 27 张卡片（来自云端） · 起始行数 27"
+  },
+  {
+   "step": "1 写入（页面表单 → 云端）",
+   "ok": true,
+   "detail": "提示「已写入数据库 ✓（数据库分配的 id = 89，刷新后依然在）」· 新行 id=89 · 行数 27→28"
+  },
+  {
+   "step": "2 刷新后仍在",
+   "ok": true,
+   "detail": "页面文本命中 true"
+  },
+  {
+   "step": "3 再刷新仍在（持久化）",
+   "ok": true,
+   "detail": "页面文本命中 true"
+  },
+  {
+   "step": "4 修改（PATCH 200）",
+   "ok": true,
+   "detail": "页面出现新文案 true · 旧文案消失 true"
+  },
+  {
+   "step": "5 删除（DELETE 200）",
+   "ok": true,
+   "detail": "页面已消失 true · 重复删返回 404（应 404）"
+  }
+ ]
+}
